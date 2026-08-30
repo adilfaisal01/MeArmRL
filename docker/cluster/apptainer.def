@@ -1,0 +1,23 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+# Singularity/Apptainer definition for the MeArmRL image.
+#
+# The SIF is built from the same Docker image pushed to ghcr.io, so it is
+# byte-reproducible from the registry artifact. The SIF is mounted read-only
+# at runtime, so students cannot modify it.
+
+Bootstrap: docker
+From: ghcr.io/<org>/mearmrl:<TAG>
+
+%environment
+    export OMNI_KIT_ALLOW_ROOT=1
+    export ACCEPT_EULA=Y
+    export PRIVACY_CONSENT=Y
+    export XDG_RUNTIME_DIR=/tmp/xdg
+    export PYTHONPATH=/opt/IsaacLab/source/isaaclab:/opt/MeArmRL/source:${PYTHONPATH}
+
+%runscript
+    exec /opt/MeArmRL/docker/entrypoint.sh "$@"
