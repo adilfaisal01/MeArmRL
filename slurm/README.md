@@ -13,7 +13,7 @@ multi-node jobs.
 
 - A SLURM account on the cluster with GPU access.
 - The cluster runs **pyxis/enroot** (or Apptainer/Singularity as a fallback).
-- The shared image `ghcr.io/<org>/mearmrl:<tag>` is available (maintainer-pushed).
+- The shared image `ghcr.io/adilfaisal01/mearmrl:<tag>` is available (maintainer-pushed).
 
 ## One-time per-user setup
 
@@ -31,9 +31,9 @@ chmod 750 /scratch/$USER/mearmrl-logs /scratch/$USER/isaac-sim-cache
 
 No `chown` is needed: the sbatch scripts run the container with
 `--container-remap-root --container-user=0`, which remaps the container's root
-user to your host user. The container (which runs as `1234:1234` by default)
-then writes to your own scratch dirs naturally. `slurm/env.sh` re-runs the
-`mkdir`/`chmod` idempotently on every job.
+user to your host user. The container then writes to your own scratch dirs
+naturally. `slurm/env.sh` re-runs the `mkdir`/`chmod` idempotently on every
+job.
 
 ## Development workflows
 

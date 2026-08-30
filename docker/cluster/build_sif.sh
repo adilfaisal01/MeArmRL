@@ -14,14 +14,14 @@
 #   bash docker/cluster/build_sif.sh 0.1.0
 #
 #   # From the registry:
-#   bash docker/cluster/build_sif.sh 0.1.0 ghcr.io/<org>
+#   bash docker/cluster/build_sif.sh 0.1.0 ghcr.io/adilfaisal01
 #
 # The SIF is written to docker/cluster/exports/ (gitignored).
 
 set -euo pipefail
 
 TAG="${1:?Usage: build_sif.sh <TAG> [REGISTRY]}"
-REGISTRY="${2:-ghcr.io/<org>}"
+REGISTRY="${2:-ghcr.io/adilfaisal01}"
 
 OUT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/exports" && pwd)"
 mkdir -p "${OUT_DIR}"

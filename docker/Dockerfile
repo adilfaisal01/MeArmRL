@@ -5,68 +5,33 @@
 
 # MeArmRL container image.
 #
-# Builds on the official NVIDIA Isaac Sim 6.0.0 container and layers in:
-#   - Isaac Lab (pinned commit, cloned at build time)
-#   - RL stack (skrl, gymnasium, hydra, ...)
-#   - the MeArmRL extension (editable install)
+# Layers the MeArmRL extension on top of the `isaac-lab-base` image, which is
+# built from the local Isaac Lab checkout (/mnt/E/IsaacLab, Isaac Lab 2.3.2)
+# using its own docker tooling:
+#
+#   cd /mnt/E/IsaacLab/docker && python3 container.py build base
+#
+# That produces the `isaac-lab-base` image (Isaac Sim 5.1.0 + Isaac Lab 2.3.2).
+# This Dockerfile then adds the MeArmRL extension and the RL stack.
 #
 # The image is a SHARED, FROZEN baseline. Students never build or push it.
 # Students bind-mount their own checkout of `source/MeArmRL` over
-# `/opt/MeArmRL/source/MeArmRL` at runtime, so their reward-function edits
-# take effect without rebuilding the image.
+# `/workspace/isaaclab/source/MeArmRL` at runtime, so their reward-function
+# edits take effect without rebuilding the image.
 #
 # Build (maintainer only):
-#   docker build -t ghcr.io/<org>/mearmrl:<tag> \
-#       --build-arg ISAAC_LAB_REF=<pinned-isaaclab-tag-or-commit> \
-#       -f docker/Dockerfile .
-#
-# The base image runs as a non-root user with UID/GID 1234:1234. We keep that
-# user so NVIDIA's tested cache-volume layout and ownership work unchanged.
+#   docker build -t ghcr.io/adilfaisal01/mearmrl:<tag> -f docker/Dockerfile .
 
-ARG ISAAC_SIM_IMAGE=nvcr.io/nvidia/isaac-sim:6.0.0
-FROM ${ISAAC_SIM_IMAGE}
-
-# ---------------------------------------------------------------------------
-# System packages (as root, then drop back to the image's default user 1234)
-# ---------------------------------------------------------------------------
-USER root
-
-ENV DEBIAN_FRONTEND=noninteractive
-
-RUN apt-get update && apt-get install -y --no-install-recommends \
-        build-essential \
-        curl \
-        git \
-        htop \
-        libegl1 \
-        libglvnd0 \
-        libgomp1 \
-        openssh-client \
-        rdma-core \
-    && rm -rf /var/lib/apt/lists/*
-
-# ---------------------------------------------------------------------------
-# Isaac Lab (pinned, cloned at build time)
-# ---------------------------------------------------------------------------
-ARG ISAAC_LAB_REF=main
-ARG ISAAC_LAB_REPO=https://github.com/isaac-sim/IsaacLab.git
-
-# Works for tags, branches, and commit SHAs.
-RUN git clone --depth 1 ${ISAAC_LAB_REPO} /opt/IsaacLab \
-    && cd /opt/IsaacLab \
-    && git fetch --depth 1 origin ${ISAAC_LAB_REF} \
-    && git checkout FETCH_HEAD
-
-RUN /isaac-sim/python.sh -m pip install --no-cache-dir \
-        -e /opt/IsaacLab/source/isaaclab \
-        -e /opt/IsaacLab/source/isaaclab_assets \
-        -e /opt/IsaacLab/source/isaaclab_tasks \
-        -e /opt/IsaacLab/source/isaaclab_rl
+ARG ISAAC_LAB_BASE_IMAGE=isaac-lab-base
+FROM ${ISAAC_LAB_BASE_IMAGE}
 
 # ---------------------------------------------------------------------------
 # RL stack on top of the Isaac Sim Python
 # ---------------------------------------------------------------------------
-RUN /isaac-sim/python.sh -m pip install --no-cache-dir \
+# The isaac-lab-base image installs Isaac Lab extensions into the Isaac Sim
+# Python. We add skrl (the RL library used by scripts/skrl/train.py) plus a
+# few helpers. `isaaclab.sh -p` resolves to the Isaac Sim python.
+RUN /workspace/isaaclab/isaaclab.sh -p -m pip install --no-cache-dir \
         "skrl>=2.0.0" \
         "gymnasium" \
         "hydra-core" \
@@ -78,13 +43,13 @@ RUN /isaac-sim/python.sh -m pip install --no-cache-dir \
 # ---------------------------------------------------------------------------
 # MeArmRL extension (editable install so the bind-mounted source wins at runtime)
 # ---------------------------------------------------------------------------
-COPY --chown=1234:1234 source/MeArmRL /opt/MeArmRL/source/MeArmRL
-COPY --chown=1234:1234 scripts /opt/MeArmRL/scripts
-COPY --chown=1234:1234 docker/entrypoint.sh /opt/MeArmRL/docker/entrypoint.sh
+COPY --chown=root:root source/MeArmRL /workspace/isaaclab/source/MeArmRL
+COPY --chown=root:root scripts /workspace/isaaclab/scripts
+COPY --chown=root:root docker/entrypoint.sh /workspace/isaaclab/docker/entrypoint.sh
 
-WORKDIR /opt/MeArmRL
+WORKDIR /workspace/isaaclab
 
-RUN /isaac-sim/python.sh -m pip install --no-cache-dir -e source/MeArmRL
+RUN /workspace/isaaclab/isaaclab.sh -p -m pip install --no-cache-dir -e source/MeArmRL
 
 # ---------------------------------------------------------------------------
 # Runtime environment
@@ -93,9 +58,7 @@ ENV OMNI_KIT_ALLOW_ROOT=1 \
     ACCEPT_EULA=Y \
     PRIVACY_CONSENT=Y \
     XDG_RUNTIME_DIR=/tmp/xdg \
-    PYTHONPATH=/opt/IsaacLab/source/isaaclab:/opt/MeArmRL/source:${PYTHONPATH}
+    ISAACLAB_PATH=/workspace/isaaclab \
+    PYTHONPATH=/workspace/isaaclab/source:${PYTHONPATH}
 
-# Restore the image's default non-root user (1234:1234)
-USER 1234
-
-ENTRYPOINT ["/opt/MeArmRL/docker/entrypoint.sh"]
+ENTRYPOINT ["/workspace/isaaclab/docker/entrypoint.sh"]

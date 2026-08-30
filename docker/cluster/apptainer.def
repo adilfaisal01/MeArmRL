@@ -10,14 +10,15 @@
 # at runtime, so students cannot modify it.
 
 Bootstrap: docker
-From: ghcr.io/<org>/mearmrl:<TAG>
+From: ghcr.io/adilfaisal01/mearmrl:0.1.0
 
 %environment
     export OMNI_KIT_ALLOW_ROOT=1
     export ACCEPT_EULA=Y
     export PRIVACY_CONSENT=Y
     export XDG_RUNTIME_DIR=/tmp/xdg
-    export PYTHONPATH=/opt/IsaacLab/source/isaaclab:/opt/MeArmRL/source:${PYTHONPATH}
+    export ISAACLAB_PATH=/workspace/isaaclab
+    export PYTHONPATH=/workspace/isaaclab/source:${PYTHONPATH}
 
 %runscript
-    exec /opt/MeArmRL/docker/entrypoint.sh "$@"
+    exec /workspace/isaaclab/docker/entrypoint.sh "$@"

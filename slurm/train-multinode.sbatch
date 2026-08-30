@@ -13,9 +13,9 @@
 #   sbatch --nodes=4 --gpus-per-node=1 slurm/train-multinode.sbatch
 #
 # The script bind-mounts:
-#   - your source checkout  -> /opt/MeArmRL/source/MeArmRL (edits take effect)
+#   - your source checkout  -> /workspace/isaaclab/source/MeArmRL (edits take effect)
 #   - your per-user logs    -> /logs
-#   - your per-user cache   -> /isaac-sim/.cache (shader/ComputeCache persist)
+#   - your per-user cache   -> Isaac Sim cache dirs (shader/ComputeCache persist)
 
 #SBATCH --job-name=mearmrl-train-mn
 #SBATCH --output=%x-%j.out
@@ -40,19 +40,20 @@ CHECKPOINT="${CHECKPOINT:-}"
 source "$(dirname "${BASH_SOURCE[0]}")/env.sh"
 
 # --- Container image ---------------------------------------------------------
-IMAGE="ghcr.io/<org>/mearmrl:0.1.0"
+IMAGE="ghcr.io/adilfaisal01/mearmrl:0.1.0"
 
 # --- Container mounts --------------------------------------------------------
 MOUNTS=(
-    "${SLURM_SUBMIT_DIR}/source/MeArmRL:/opt/MeArmRL/source/MeArmRL"
+    "${SLURM_SUBMIT_DIR}/source/MeArmRL:/workspace/isaaclab/source/MeArmRL"
     "${MEARMRL_JOB_LOGS}:/logs"
-    "${MEARMRL_CACHE_ROOT}/.cache:/isaac-sim/.cache"
-    "${MEARMRL_CACHE_ROOT}/computecache:/isaac-sim/.nv/ComputeCache"
-    "${MEARMRL_CACHE_ROOT}/ov-logs:/isaac-sim/.nvidia-omniverse/logs"
-    "${MEARMRL_CACHE_ROOT}/ov-config:/isaac-sim/.nvidia-omniverse/config"
-    "${MEARMRL_CACHE_ROOT}/ov-data:/isaac-sim/.local/share/ov/data"
-    "${MEARMRL_CACHE_ROOT}/ov-pkg:/isaac-sim/.local/share/ov/pkg"
-    "${MEARMRL_CACHE_ROOT}/hub:/var/cache/hub"
+    "${MEARMRL_CACHE_ROOT}/kit:/isaac-sim/kit/cache"
+    "${MEARMRL_CACHE_ROOT}/ov:/root/.cache/ov"
+    "${MEARMRL_CACHE_ROOT}/pip:/root/.cache/pip"
+    "${MEARMRL_CACHE_ROOT}/glcache:/root/.cache/nvidia/GLCache"
+    "${MEARMRL_CACHE_ROOT}/computecache:/root/.nv/ComputeCache"
+    "${MEARMRL_CACHE_ROOT}/ov-logs:/root/.nvidia-omniverse/logs"
+    "${MEARMRL_CACHE_ROOT}/ov-data:/root/.local/share/ov/data"
+    "${MEARMRL_CACHE_ROOT}/documents:/root/Documents"
 )
 MOUNT_ARGS=()
 for m in "${MOUNTS[@]}"; do
@@ -67,14 +68,14 @@ fi
 
 # --- Launch (torchrun rendezvous on MASTER_ADDR:MASTER_PORT) -----------------
 # --container-remap-root --container-user=0: the container's root user is
-# remapped to the host user, so the container (which runs as 1234:1234 by
-# default) can write to your per-user scratch dirs without any chown.
+# remapped to the host user, so the container can write to your per-user
+# scratch dirs without any chown.
 srun \
     --container-image="${IMAGE}" \
     --container-remap-root \
     --container-user=0 \
     "${MOUNT_ARGS[@]}" \
-    --container-workdir=/opt/MeArmRL \
+    --container-workdir=/workspace/isaaclab \
     torchrun \
         --nnodes="${SLURM_NNODES}" \
         --nproc_per_node="${SLURM_GPUS_PER_NODE}" \
