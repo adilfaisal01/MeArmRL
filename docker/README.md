@@ -60,6 +60,21 @@ apptainer build mearmrl_0.1.0.sif docker://ghcr.io/adilfaisal01/mearmrl:0.1.0
 
 The SIF is read-only by Apptainer default, so students cannot modify it.
 
+## Testing
+
+Run the containerization test suite:
+
+```bash
+# Static checks + build + list registered tasks (no GPU needed for list_envs)
+bash scripts/test_container.sh
+
+# Also run a zero-agent smoke test (requires an NVIDIA GPU)
+bash scripts/test_container.sh --full
+
+# Skip the build (if the image is already built)
+bash scripts/test_container.sh --skip-build
+```
+
 ## Local development (students)
 
 Students can run the same image on their own GPU machine to debug reward
