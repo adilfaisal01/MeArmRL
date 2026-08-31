@@ -28,9 +28,16 @@ export MEARMRL_CACHE_ROOT="/scratch/${USER}/isaac-sim-cache"
 export MEARMRL_JOB_LOGS="${MEARMRL_LOGS_ROOT}/jobs/${SLURM_JOB_ID}"
 
 # --- One-time setup (idempotent) -------------------------------------------
-# Create per-user scratch dirs. Group read/execute bits let teammates/TA
-# inspect runs. No chown needed: the sbatch scripts run the container with
-# --container-remap-root --container-user=0, so the container writes as the
-# host user and owns these dirs naturally.
+# Create per-user scratch dirs. No chown needed: the pyxis sbatch scripts run
+# the container with --container-remap-root --container-user=0, so the
+# container writes as the host user and owns these dirs naturally.
+#
+# Native-Docker jobs (MEARMRL_BACKEND=docker) have no remap-root: the
+# container runs as real root, so the dirs must be writable by it. Group
+# read/execute bits are dropped in favor of world read/execute in that case.
 mkdir -p "${MEARMRL_LOGS_ROOT}/jobs" "${MEARMRL_CACHE_ROOT}"
-chmod 750 "${MEARMRL_LOGS_ROOT}" "${MEARMRL_CACHE_ROOT}"
+if [ "${MEARMRL_BACKEND:-}" = "docker" ]; then
+    chmod 777 "${MEARMRL_LOGS_ROOT}" "${MEARMRL_CACHE_ROOT}"
+else
+    chmod 750 "${MEARMRL_LOGS_ROOT}" "${MEARMRL_CACHE_ROOT}"
+fi

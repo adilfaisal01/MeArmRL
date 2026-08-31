@@ -1,0 +1,84 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+# Standalone Singularity/Apptainer definition for the MeArmRL image.
+#
+# Builds the FULL image (Isaac Sim 5.1.0 + Isaac Lab 2.3.2 + MeArmRL) directly
+# from the NVIDIA container registry — NO Docker required. This mirrors
+# docker/Dockerfile; keep the two in sync when upgrading versions.
+#
+# Build from the repo root (Apptainer only, plus NGC auth):
+#
+#   export APPTAINER_DOCKER_USERNAME='$oauthtoken'
+#   export APPTAINER_DOCKER_PASSWORD='<NGC API key>'
+#   apptainer build ~/mearmrl_local.sif docker/cluster/apptainer-standalone.def
+#
+# Then upload the SIF to the HPC (home dirs are usually shared across nodes):
+#
+#   rsync -avP ~/mearmrl_local.sif <user>@hpc-login:~/
+#
+# See slurm/README.md "One-time setup: three paths" for when to use this.
+
+Bootstrap: docker
+From: nvcr.io/nvidia/isaac-sim:5.1.0
+
+%files
+    source/MeArmRL /MeArmRL/source/MeArmRL
+    scripts /MeArmRL/scripts
+    docker/entrypoint.sh /MeArmRL/docker/entrypoint.sh
+
+%post
+    set -e
+    export DOCKER_USER_HOME=/root
+    export DEBIAN_FRONTEND=noninteractive
+
+    # System utilities (cmake/build-essential needed by isaaclab.sh --install)
+    apt-get update && apt-get install -y --no-install-recommends \
+        git \
+        cmake \
+        build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+    # Isaac Lab, pinned tag (must match docker/Dockerfile)
+    git clone --depth=1 --branch v2.3.2 https://github.com/isaac-sim/IsaacLab.git /IsaacLab
+
+    export ISAACSIM_PATH=/isaac-sim
+    export ISAACLAB_PATH=/IsaacLab
+    export PYTHONPATH=${ISAACLAB_PATH}/source:${PYTHONPATH}
+    cd /IsaacLab
+
+    # Link the Isaac Sim runtime so isaaclab.sh finds _isaac_sim/python.sh
+    ln -s ${ISAACSIM_PATH} _isaac_sim
+
+    # Upgrade the Isaac Sim Python's pip (not the system Python's)
+    /IsaacLab/_isaac_sim/kit/python/bin/python3 -m pip install --no-cache-dir \
+        "pip<25.0" "packaging<24.0"
+
+    # Install Isaac Lab + deps into the Isaac Sim Python (torch, isaacsim-rl, extensions)
+    TERM=xterm ./isaaclab.sh --install
+
+    # RL stack on the Isaac Sim Python (never bare pip: two Pythons in here)
+    /IsaacLab/isaaclab.sh -p -m pip install --no-cache-dir \
+        "skrl>=2.0.0" \
+        "gymnasium" \
+        "hydra-core" \
+        "omegaconf" \
+        "packaging" \
+        "psutil" \
+        "toml"
+
+    # MeArmRL extension (editable install so bind-mounted source wins at runtime)
+    /IsaacLab/isaaclab.sh -p -m pip install --no-cache-dir -e /MeArmRL/source/MeArmRL
+
+%environment
+    export OMNI_KIT_ALLOW_ROOT=1
+    export ACCEPT_EULA=Y
+    export PRIVACY_CONSENT=Y
+    export XDG_RUNTIME_DIR=/tmp/xdg
+    export ISAACLAB_PATH=/IsaacLab
+    export PYTHONPATH=/IsaacLab/source:/MeArmRL/source:${PYTHONPATH}
+
+%runscript
+    exec /MeArmRL/docker/entrypoint.sh "$@"

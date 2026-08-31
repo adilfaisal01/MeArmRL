@@ -4,36 +4,40 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Build the MeArmRL Singularity/Apptainer SIF from the Docker image.
+# Build the MeArmRL Singularity/Apptainer SIF from the locally-built Docker image.
+#
+# NOTE: requires Docker (reads the local daemon). For a Docker-free SIF build,
+# use `docker/cluster/apptainer-standalone.def` instead — it builds the full
+# image from nvcr.io with Apptainer only.
 #
 # Usage:
-#   bash docker/cluster/build_sif.sh <TAG> [REGISTRY]
+#   bash docker/cluster/build_sif.sh <TAG> [OUT_DIR]
 #
 # Examples:
-#   # From the local Docker daemon (no registry round-trip):
-#   bash docker/cluster/build_sif.sh 0.1.0
+#   # On the login node (image must already be built: docker build -t mearmrl:local ...):
+#   bash docker/cluster/build_sif.sh local "$HOME"     # writes /home/<user>/mearmrl_local.sif
+#   bash docker/cluster/build_sif.sh local             # writes docker/cluster/exports/mearmrl_local.sif
 #
-#   # From the registry:
-#   bash docker/cluster/build_sif.sh 0.1.0 ghcr.io/adilfaisal01
-#
-# The SIF is written to docker/cluster/exports/ (gitignored).
+# Prerequisites (one-time before this script):
+#   docker login nvcr.io && docker build -t mearmrl:local -f docker/Dockerfile .
 
 set -euo pipefail
 
-TAG="${1:?Usage: build_sif.sh <TAG> [REGISTRY]}"
-REGISTRY="${2:-ghcr.io/adilfaisal01}"
+TAG="${1:?Usage: build_sif.sh <TAG> [OUT_DIR]}"
+OUT_DIR="${2:-$(cd "$(dirname "${BASH_SOURCE[0]}")/exports" && pwd)}"
+SRC_IMAGE="mearmrl:${TAG}"
 
-OUT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/exports" && pwd)"
 mkdir -p "${OUT_DIR}"
 SIF="${OUT_DIR}/mearmrl_${TAG}.sif"
 
-# Prefer the local Docker daemon; fall back to the registry.
-if docker image inspect "${REGISTRY}/mearmrl:${TAG}" >/dev/null 2>&1; then
-    echo "[build_sif] Building from local Docker daemon: ${REGISTRY}/mearmrl:${TAG}"
-    apptainer build "${SIF}" "docker-daemon://${REGISTRY}/mearmrl:${TAG}"
-else
-    echo "[build_sif] Building from registry: ${REGISTRY}/mearmrl:${TAG}"
-    apptainer build "${SIF}" "docker://${REGISTRY}/mearmrl:${TAG}"
+# Build from the local Docker daemon (no registry round-trip).
+if ! docker image inspect "${SRC_IMAGE}" >/dev/null 2>&1; then
+    echo "[build_sif] ERROR: local image '${SRC_IMAGE}' not found." >&2
+    echo "[build_sif] Build it first:" >&2
+    echo "[build_sif]   docker login nvcr.io && docker build -t mearmrl:${TAG} -f docker/Dockerfile ." >&2
+    exit 1
 fi
+echo "[build_sif] Building from local Docker daemon: ${SRC_IMAGE}"
+apptainer build "${SIF}" "docker-daemon://${SRC_IMAGE}"
 
 echo "[build_sif] SIF written to: ${SIF}"

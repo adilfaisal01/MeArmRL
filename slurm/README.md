@@ -12,8 +12,11 @@ multi-node jobs.
 ## Prerequisites
 
 - A SLURM account on the cluster with GPU access.
-- The cluster runs **pyxis/enroot** (or Apptainer/Singularity as a fallback).
-- The shared image `ghcr.io/adilfaisal01/mearmrl:<tag>` is available (maintainer-pushed).
+- The cluster runs **pyxis/enroot** (see `slurm/train.sbatch`) or has **native
+  Docker** on the compute nodes (see `slurm/train-docker.sbatch` — details in
+  "Choosing a cluster backend" below).
+- A free [NGC account](https://ngc.nvidia.com/) and API key (needed to pull
+  the `nvcr.io/nvidia/isaac-sim` base image).
 
 ## One-time per-user setup
 
@@ -29,11 +32,136 @@ mkdir -p /scratch/$USER/mearmrl-logs/jobs /scratch/$USER/isaac-sim-cache
 chmod 750 /scratch/$USER/mearmrl-logs /scratch/$USER/isaac-sim-cache
 ```
 
-No `chown` is needed: the sbatch scripts run the container with
-`--container-remap-root --container-user=0`, which remaps the container's root
-user to your host user. The container then writes to your own scratch dirs
-naturally. `slurm/env.sh` re-runs the `mkdir`/`chmod` idempotently on every
-job.
+No `chown` is needed on pyxis clusters: the sbatch scripts run the container
+with `--container-remap-root --container-user=0`, which remaps the container's
+root user to your host user. `slurm/env.sh` re-runs the `mkdir`/`chmod`
+idempotently on every job.
+
+Then get the image onto the cluster — **pick one of the three paths below**
+depending on what is installed on the login node and your uplink speed. All
+three produce the same thing: `~/mearmrl_local.sif`, visible on every node
+via the shared home filesystem. On pyxis clusters pyxis only needs the SIF
+file to *run* — the login node does not need Docker or Apptainer installed.
+
+| Login node has… | Recommended path |
+|---|---|
+| Docker + good bandwidth | **C** (build on login node) |
+| Apptainer but no Docker | **A** (build SIF on laptop, upload) |
+| Neither Docker nor Apptainer | **A** (build SIF on laptop, upload) |
+| Slow login-node bandwidth to nvcr.io | **A** or **B** (offload the heavy pull to your laptop) |
+
+Regardless of path, pyxis clusters have no `chown` to worry about: the sbatch
+scripts run the container with `--container-remap-root --container-user=0`,
+which remaps the container's root user to your host user. `slurm/env.sh`
+re-runs the `mkdir`/`chmod` idempotently on every job.
+
+### Path A — build the SIF on your laptop, upload to the HPC
+
+Universal fallback: works on any cluster with pyxis/enroot, because the login
+node only needs the SIF file to run it. Requires Docker + Apptainer on your
+laptop (or just Apptainer, using the standalone definition).
+
+```bash
+# On your laptop, from the repo root.
+
+# With Docker + Apptainer:
+docker login nvcr.io
+docker build -t mearmrl:local -f docker/Dockerfile .
+bash docker/cluster/build_sif.sh local "$HOME"      # writes ~/mearmrl_local.sif
+
+# OR without Docker (Apptainer only, standalone definition):
+export APPTAINER_DOCKER_USERNAME='$oauthtoken'
+export APPTAINER_DOCKER_PASSWORD='<NGC API key>'
+apptainer build ~/mearmrl_local.sif docker/cluster/apptainer-standalone.def
+
+# Upload (~11 GB; rsync resumes if the connection drops):
+rsync -avP ~/mearmrl_local.sif <user>@hpc-login:~/
+```
+
+On the HPC, submit as usual — `train.sbatch` defaults `MEARMRL_IMAGE` to
+`~/mearmrl_local.sif`.
+
+### Path B — build Docker on your laptop, upload the tarball, convert on the login node
+
+Use if your laptop has Docker but you'd rather not install Apptainer locally.
+**Requires Docker on the login node** (to `docker load` the tarball) — if the
+login node has no Docker, use Path A instead.
+
+```bash
+# On your laptop:
+docker login nvcr.io
+docker build -t mearmrl:local -f docker/Dockerfile .
+docker save mearmrl:local | gzip > mearmrl.tar.gz   # ~11 GB
+
+# Upload:
+rsync -avP mearmrl.tar.gz <user>@hpc-login:/scratch/$USER/
+
+# On the login node:
+cd ~/MeArmRL && docker load < /scratch/$USER/mearmrl.tar.gz
+bash docker/cluster/build_sif.sh local "$HOME"
+```
+
+### Path C — build everything on the login node
+
+Simplest when the login node has Docker and good bandwidth to nvcr.io. No
+upload at all — the pull happens over the cluster's fast connection.
+
+```bash
+# On the login node, from the repo root:
+docker login nvcr.io
+docker build -t mearmrl:local -f docker/Dockerfile .    # ~15-20 min first build
+bash docker/cluster/build_sif.sh local "$HOME"          # writes ~/mearmrl_local.sif
+```
+
+## Choosing a cluster backend
+
+Your cluster uses one of two container runtimes. Pick the matching sbatch:
+
+| Backend | sbatch | Image format | Distribution |
+|---|---|---|---|
+| pyxis/enroot (most academic clusters) | `slurm/train.sbatch`, `slurm/train-multinode.sbatch` | `.sif` file | Build SIF on the login node; all nodes read it from the shared home FS |
+| Native Docker on compute nodes | `slurm/train-docker.sbatch` | Docker image | Self-hosted registry **or** `docker save/load` (below) |
+
+### Native Docker: getting the image onto the compute nodes
+
+Each compute node's Docker daemon needs the image. Two options:
+
+**Option A — self-hosted registry on the login node** (fast, one pull per node):
+
+```bash
+# On the login node:
+docker run -d -p 5000:5000 --restart=always --name registry registry:2
+docker tag mearmrl:local <login-node-hostname>:5000/mearmrl:local
+docker push <login-node-hostname>:5000/mearmrl:local
+```
+
+Requires the login node to expose port 5000 to compute nodes. Submit with:
+
+```bash
+MEARMRL_IMAGE=<login-node-hostname>:5000/mearmrl:local sbatch slurm/train-docker.sbatch
+```
+
+**Option B — `docker save`/`load` via the shared filesystem** (no registry):
+
+```bash
+# On the login node:
+docker save mearmrl:local | gzip > /scratch/$USER/mearmrl.tar.gz
+
+# On a compute node (once, or as a preamble step in the job):
+docker load < /scratch/$USER/mearmrl.tar.gz
+```
+
+No registry to run, but the ~11 GB tarball eats scratch space and every node
+pays a one-time load.
+
+**Permissions**: native Docker has no `--container-remap-root`, so the
+container runs as real root. `train-docker.sbatch` sets
+`MEARMRL_BACKEND=docker`, and `slurm/env.sh` then makes your scratch dirs
+world-writable (`chmod 777`) so the container can write checkpoints. If your
+cluster offers rootless Docker or Podman, prefer
+`podman run --userns=keep-id` to keep host-uid file ownership instead.
+Multi-node training is not provided for the Docker path — adapt
+`train-multinode.sbatch` if your cluster needs it.
 
 ## Development workflows
 

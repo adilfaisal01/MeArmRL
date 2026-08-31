@@ -12,8 +12,13 @@
 # Override node/GPU counts per job:
 #   sbatch --nodes=4 --gpus-per-node=1 slurm/train-multinode.sbatch
 #
+# Prerequisites (one-time on the login node):
+#   docker login nvcr.io                                     # free NGC API key
+#   docker build -t mearmrl:local -f docker/Dockerfile .
+#   bash docker/cluster/build_sif.sh local "$HOME"           # produces a SIF
+#
 # The script bind-mounts:
-#   - your source checkout  -> /workspace/isaaclab/source/MeArmRL (edits take effect)
+#   - your source checkout  -> /MeArmRL/source/MeArmRL (edits take effect)
 #   - your per-user logs    -> /logs
 #   - your per-user cache   -> Isaac Sim cache dirs (shader/ComputeCache persist)
 
@@ -40,11 +45,20 @@ CHECKPOINT="${CHECKPOINT:-}"
 source "$(dirname "${BASH_SOURCE[0]}")/env.sh"
 
 # --- Container image ---------------------------------------------------------
-IMAGE="ghcr.io/adilfaisal01/mearmrl:0.1.0"
+# Default: the SIF built by `bash docker/cluster/build_sif.sh local "$HOME"`.
+# The SIF must be visible on every node (home dirs are usually shared).
+IMAGE="${MEARMRL_IMAGE:-${HOME}/mearmrl_local.sif}"
+if [ ! -f "${IMAGE}" ]; then
+    echo "[train-multinode.sbatch] ERROR: SIF '${IMAGE}' not found." >&2
+    echo "[train-multinode.sbatch] Build it first on the login node:" >&2
+    echo "[train-multinode.sbatch]   docker login nvcr.io && docker build -t mearmrl:local -f docker/Dockerfile ." >&2
+    echo "[train-multinode.sbatch]   bash docker/cluster/build_sif.sh local \"\$HOME\"" >&2
+    exit 1
+fi
 
 # --- Container mounts --------------------------------------------------------
 MOUNTS=(
-    "${SLURM_SUBMIT_DIR}/source/MeArmRL:/workspace/isaaclab/source/MeArmRL"
+    "${SLURM_SUBMIT_DIR}/source/MeArmRL:/MeArmRL/source/MeArmRL"
     "${MEARMRL_JOB_LOGS}:/logs"
     "${MEARMRL_CACHE_ROOT}/kit:/isaac-sim/kit/cache"
     "${MEARMRL_CACHE_ROOT}/ov:/root/.cache/ov"
@@ -75,7 +89,7 @@ srun \
     --container-remap-root \
     --container-user=0 \
     "${MOUNT_ARGS[@]}" \
-    --container-workdir=/workspace/isaaclab \
+    --container-workdir=/MeArmRL \
     torchrun \
         --nnodes="${SLURM_NNODES}" \
         --nproc_per_node="${SLURM_GPUS_PER_NODE}" \

@@ -8,7 +8,7 @@
 #
 # Stages:
 #   1. Static checks (bash -n on all shell scripts)
-#   2. Build the MeArmRL image (requires isaac-lab-base to exist)
+#   2. Build the MeArmRL image (pulls the nvcr.io base itself)
 #   3. Smoke test: list registered tasks inside the container
 #   4. (Optional) zero-agent run with a few envs to verify the env loads
 #
@@ -17,14 +17,13 @@
 #   bash scripts/test_container.sh --full     # also runs zero_agent smoke test
 #   bash scripts/test_container.sh --skip-build  # only static checks + smoke test
 #
-# Requires: Docker, an NVIDIA GPU (for the smoke test), and the isaac-lab-base
-# image built from /mnt/E/IsaacLab (see docker/README.md).
+# Prerequisites: Docker, an NVIDIA GPU (for the smoke test), and
+# `docker login nvcr.io` (free NGC API key) so the base image can be pulled.
 
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-IMAGE="${MEARMRL_IMAGE:-ghcr.io/adilfaisal01/mearmrl:0.1.0}"
-BASE_IMAGE="${MEARMRL_BASE_IMAGE:-isaac-lab-base}"
+IMAGE="${MEARMRL_IMAGE:-mearmrl:local}"
 TASK="${TASK:-Template-Mearmrl-v0}"
 
 FULL=0
@@ -44,6 +43,7 @@ for f in \
     slurm/env.sh \
     slurm/train.sbatch \
     slurm/train-multinode.sbatch \
+    slurm/train-docker.sbatch \
     scripts/dev_local.sh \
     scripts/test_container.sh; do
     bash -n "${REPO_ROOT}/${f}"
@@ -54,11 +54,6 @@ echo "=== [2/4] Build the MeArmRL image ==="
 if [ "${SKIP_BUILD}" -eq 1 ]; then
     echo "  Skipped (--skip-build)."
 else
-    if ! docker image inspect "${BASE_IMAGE}" >/dev/null 2>&1; then
-        echo "  ERROR: base image '${BASE_IMAGE}' not found." >&2
-        echo "  Build it first: cd /mnt/E/IsaacLab/docker && python3 container.py build base" >&2
-        exit 1
-    fi
     docker build -t "${IMAGE}" -f "${REPO_ROOT}/docker/Dockerfile" "${REPO_ROOT}"
     echo "  Built: ${IMAGE}"
 fi
@@ -69,11 +64,11 @@ docker run --rm \
     -e PRIVACY_CONSENT=Y \
     -e XDG_RUNTIME_DIR=/tmp/xdg \
     -e OMNI_KIT_ALLOW_ROOT=1 \
-    -e ISAACLAB_PATH=/workspace/isaaclab \
-    -e PYTHONPATH=/workspace/isaaclab/source \
-    -w /workspace/isaaclab \
+    -e ISAACLAB_PATH=/IsaacLab \
+    -e PYTHONPATH=/IsaacLab/source:/MeArmRL/source \
+    -w /MeArmRL \
     "${IMAGE}" \
-    /workspace/isaaclab/isaaclab.sh -p scripts/list_envs.py --keyword "${TASK}" 2>&1 | tail -20
+    /IsaacLab/isaaclab.sh -p scripts/list_envs.py --keyword "${TASK}" 2>&1 | tail -20
 
 echo "=== [4/4] Zero-agent smoke test ==="
 if [ "${FULL}" -eq 1 ]; then
@@ -82,11 +77,11 @@ if [ "${FULL}" -eq 1 ]; then
         -e PRIVACY_CONSENT=Y \
         -e XDG_RUNTIME_DIR=/tmp/xdg \
         -e OMNI_KIT_ALLOW_ROOT=1 \
-        -e ISAACLAB_PATH=/workspace/isaaclab \
-        -e PYTHONPATH=/workspace/isaaclab/source \
-        -w /workspace/isaaclab \
+        -e ISAACLAB_PATH=/IsaacLab \
+        -e PYTHONPATH=/IsaacLab/source:/MeArmRL/source \
+        -w /MeArmRL \
         "${IMAGE}" \
-        /workspace/isaaclab/isaaclab.sh -p scripts/zero_agent.py --task "${TASK}" --num_envs 4 --headless 2>&1 | tail -20
+        /IsaacLab/isaaclab.sh -p scripts/zero_agent.py --task "${TASK}" --num_envs 4 --headless 2>&1 | tail -20
 else
     echo "  Skipped (pass --full to run the zero-agent smoke test; requires a GPU)."
 fi

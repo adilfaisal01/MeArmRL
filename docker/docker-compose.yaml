@@ -1,0 +1,101 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+# MeArmRL local development with Docker Compose.
+#
+# Two profiles on the same image:
+#   dev    -- interactive bash, bind-mounted source (reward-function debugging)
+#   train  -- headless training run
+#
+# Named volumes persist the Isaac Sim caches (shaders, GL, ComputeCache) across
+# runs, so only the first run pays the warm-up cost.
+#
+# Usage:
+#   docker compose build                                            # build the image
+#   docker compose --profile dev run --rm mearmrl                   # interactive shell
+#   docker compose --profile dev run --rm mearmrl \
+#       /IsaacLab/isaaclab.sh -p scripts/list_envs.py               # one-off command
+#   docker compose --profile train run --rm mearmrl \
+#       --task=Template-Mearmrl-v0 --num_envs=64 --headless         # training
+#
+# GUI / X11 (optional, not enabled by default): add
+#   -e DISPLAY -v $HOME/.Xauthority:/root/.Xauthority -v /tmp/.X11-unix:/tmp/.X11-unix
+# and run `xhost +` on the host. See docker/README.md.
+
+services:
+  mearmrl:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    image: mearmrl:local
+    network_mode: host
+    environment: &default-env
+      - ACCEPT_EULA=Y
+      - PRIVACY_CONSENT=Y
+      - XDG_RUNTIME_DIR=/tmp/xdg
+      - OMNI_KIT_ALLOW_ROOT=1
+      - ISAACLAB_PATH=/IsaacLab
+      - PYTHONPATH=/IsaacLab/source:/MeArmRL/source
+    volumes: &default-volumes
+      # Bind-mounted source: student edits take effect without a rebuild
+      - type: bind
+        source: ../source/MeArmRL
+        target: /MeArmRL/source/MeArmRL
+      - type: bind
+        source: ../logs
+        target: /logs
+      # Isaac Sim caches (expensive to warm up) persist across runs
+      - type: volume
+        source: isaac-cache-kit
+        target: /isaac-sim/kit/cache
+      - type: volume
+        source: isaac-cache-ov
+        target: /root/.cache/ov
+      - type: volume
+        source: isaac-cache-gl
+        target: /root/.cache/nvidia/GLCache
+      - type: volume
+        source: isaac-cache-compute
+        target: /root/.nv/ComputeCache
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    entrypoint: /MeArmRL/docker/entrypoint.sh
+    working_dir: /MeArmRL
+    profiles: ["train"]
+    command:
+      - /IsaacLab/isaaclab.sh
+      - -p
+      - scripts/skrl/train.py
+      - --headless
+
+  dev:
+    image: mearmrl:local
+    network_mode: host
+    environment: *default-env
+    volumes: *default-volumes
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    entrypoint: /MeArmRL/docker/entrypoint.sh
+    working_dir: /MeArmRL
+    profiles: ["dev"]
+    stdin_open: true
+    tty: true
+    command: bash
+
+volumes:
+  isaac-cache-kit:
+  isaac-cache-ov:
+  isaac-cache-gl:
+  isaac-cache-compute:

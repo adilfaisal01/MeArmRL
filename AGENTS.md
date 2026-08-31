@@ -4,34 +4,41 @@ Guidance for working in this repo. Read `README.md`, `docker/README.md`, and `sl
 
 ## What this is
 
-Isaac Lab 2.3.2 extension template for a MeArm robot arm, on Isaac Sim 5.1.0. The runtime is a **shared, frozen Docker image** `ghcr.io/adilfaisal01/mearmrl:0.1.0` (maintainer-built; students never build/push it). Students bind-mount `source/MeArmRL` over `/workspace/isaaclab/source/MeArmRL` at runtime, so reward/env edits take effect without rebuilding.
+Isaac Lab 2.3.2 extension template for a MeArm robot arm, on Isaac Sim 5.1.0. The container stack is **built locally by students/maintainers alike** — there is no shared registry or maintainer push step. `docker/Dockerfile` starts from `nvcr.io/nvidia/isaac-sim:5.1.0`, clones Isaac Lab tag `v2.3.2` from GitHub, installs it into the Isaac Sim Python, then adds the MeArmRL extension and the RL stack. Students bind-mount `source/MeArmRL` over `/MeArmRL/source/MeArmRL` at runtime, so reward/env edits take effect without rebuilding.
 
 ## Running code
 
-- The Python entrypoint is `isaaclab.sh -p` (the Isaac Sim Python), **not** `python`, unless Isaac Lab is installed in a venv. Inside the container it's `/workspace/isaaclab/isaaclab.sh -p scripts/skrl/train.py ...`.
-- Local dev: `bash scripts/dev_local.sh --task=Template-Mearmrl-v0 --num_envs=64 --headless` (bind-mounts `source/MeArmRL` + `logs/`, requires GPU + NVIDIA Container Toolkit). `--shell` drops into a bash.
-- Install in editable mode: `python -m pip install -e source/MeArmRL` (the package lives under `source/`, not the repo root).
+- The Python entrypoint is `isaaclab.sh -p` (the Isaac Sim Python), **not** `python` or bare `pip` — the container has two Pythons (Isaac Sim's at `/isaac-sim/python.sh`, apt's at `/usr/bin/python3`) and only the former has Isaac Lab. Inside the container: `/IsaacLab/isaaclab.sh -p scripts/skrl/train.py ...`.
+- Build the image: `docker login nvcr.io` (free NGC API key, one-time) then `docker build -t mearmrl:local -f docker/Dockerfile .`.
+- Local dev, two equivalent routes: `bash scripts/dev_local.sh --task=Template-Mearmrl-v0 --num_envs=64 --headless` (minimal) or `docker compose --profile dev run --rm mearmrl` from `docker/` (persistent Isaac Sim cache volumes). `--shell` drops into a bash.
+- Container layout: `/isaac-sim` (Isaac Sim runtime), `/IsaacLab` (Isaac Lab clone), `/MeArmRL` (this repo). The workspace root inside the container is `/MeArmRL`, not the old `/workspace/isaaclab`.
+- Install in editable mode: `/IsaacLab/isaaclab.sh -p -m pip install -e source/MeArmRL`.
 
 ## Registered tasks
 
 `Template-Mearmrl-v0` and `Mearmrl-Reach-v0` are registered in `source/MeArmRL/MeArmRL/tasks/manager_based/mearmrl/__init__.py`. `scripts/list_envs.py` hardcodes the `Template-` keyword filter — if you rename a task, update that filter.
 
-## Container image (maintainer only)
+## Container image (student-built, no registry)
 
-- The Dockerfile layers on `isaac-lab-base`, built from the local Isaac Lab checkout at `/mnt/E/IsaacLab`: `cd /mnt/E/IsaacLab/docker && python3 container.py build base`. That base must exist locally before `docker build`.
-- Image is ~11 GB (Isaac Sim itself dominates — user code is ~1.5 MB). GHCR push needs a PAT with `write:packages`; the package **must be public** (private free tier is 500 MB, public is unlimited). Registry is GHCR, not Docker Hub.
-- The extension is installed editable, so a bind-mounted `source/MeArmRL` overrides the baked-in copy.
+- No GHCR/push workflow exists anymore; the image is built with a single `docker build` on whatever machine needs it. Pin `ISAACSIM_VERSION` (default `5.1.0`) and the Isaac Lab tag (`v2.3.2`) together when upgrading.
+- `docker/docker-compose.yaml` defines two profiles: `dev` (interactive bash, bind-mounted source) and `train` (headless training), plus named volumes for the Isaac Sim caches.
+- X11/GUI is documented in `docker/README.md` but not enabled by default (the base image supports it).
+- BuildKit is required for the pip cache mount in the Dockerfile (`RUN --mount=type=cache`); Docker 23+ has it by default, older versions need `DOCKER_BUILDKIT=1`.
 
 ## Container test pipeline
 
 `bash scripts/test_container.sh` (static `bash -n` checks + build + `list_envs`; no GPU needed). `--full` adds a zero-agent GPU smoke test; `--skip-build` reuses the existing image. There is **no `pytest` suite** and `tests/` is gitignored — don't look for one.
 
-## SLURM / HPC (pyxis/enroot)
+## SLURM / HPC
 
-- Single node: `sbatch slurm/train.sbatch`. Multi-node: `sbatch --nodes=N --gpus-per-node=1 slurm/train-multinode.sbatch` (torchrun + NCCL).
-- Per-job overrides via env: `TASK= NUM_ENVS= MAX_ITERATIONS= SEED= CHECKPOINT= sbatch slurm/train.sbatch`.
+Three deployment paths (see `slurm/README.md` "Choosing a cluster backend"):
+
+- pyxis/enroot (most academic clusters): get `~/mearmrl_local.sif` onto the cluster via one of THREE delivery paths (see `slurm/README.md`): (A) build the SIF on a laptop (`build_sif.sh` with Docker, or `docker/cluster/apptainer-standalone.def` with Apptainer only) and `rsync` it up; (B) `docker save` tarball uploaded, converted on the login node (needs login-node Docker); (C) build Docker image + SIF directly on the login node. Then `sbatch slurm/train.sbatch` (single) / `slurm/train-multinode.sbatch` (torchrun + NCCL). The sbatch scripts default `IMAGE` to `$HOME/mearmrl_local.sif` and fail loudly if it's missing; override with `MEARMRL_IMAGE=`.
+- native Docker: `MEARMRL_BACKEND=docker sbatch slurm/train-docker.sbatch`; image reaches compute nodes via a self-hosted registry on the login node or `docker save/load` (both documented). Single-node only; runs as root (no remap-root), with `env.sh` loosening scratch perms to `777` when `MEARMRL_BACKEND=docker`.
+- Per-job overrides via env: `TASK= NUM_ENVS= MAX_ITERATIONS= SEED= CHECKPOINT= MEARMRL_IMAGE= sbatch slurm/train.sbatch`.
+
 - Submit from your checkout: the sbatch scripts use `$SLURM_SUBMIT_DIR` as the bind-mount source.
-- Per-user scratch (`/scratch/$USER/mearmrl-logs`, `/scratch/$USER/isaac-sim-cache`) is created idempotently by `slurm/env.sh`. The container runs with `--container-remap-root --container-user=0`, which remaps container root to the host user — **never `chown`** scratch dirs.
+- Per-user scratch (`/scratch/$USER/mearmrl-logs`, `/scratch/$USER/isaac-sim-cache`) is created idempotently by `slurm/env.sh`. The pyxis scripts use `--container-remap-root --container-user=0`, which remaps container root to the host user — **never `chown`** scratch dirs.
 
 ## Lint / format
 

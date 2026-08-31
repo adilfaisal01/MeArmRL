@@ -5,20 +5,20 @@
 
 # Singularity/Apptainer definition for the MeArmRL image.
 #
-# The SIF is built from the same Docker image pushed to ghcr.io, so it is
-# byte-reproducible from the registry artifact. The SIF is mounted read-only
-# at runtime, so students cannot modify it.
+# The SIF is built from the locally-built Docker image (mearmrl:local), so it
+# is byte-reproducible without any registry. The SIF is mounted read-only at
+# runtime, so students cannot modify it.
 
-Bootstrap: docker
-From: ghcr.io/adilfaisal01/mearmrl:0.1.0
+Bootstrap: docker-daemon
+From: mearmrl:local
 
 %environment
     export OMNI_KIT_ALLOW_ROOT=1
     export ACCEPT_EULA=Y
     export PRIVACY_CONSENT=Y
     export XDG_RUNTIME_DIR=/tmp/xdg
-    export ISAACLAB_PATH=/workspace/isaaclab
-    export PYTHONPATH=/workspace/isaaclab/source:${PYTHONPATH}
+    export ISAACLAB_PATH=/IsaacLab
+    export PYTHONPATH=/IsaacLab/source:/MeArmRL/source:${PYTHONPATH}
 
 %runscript
-    exec /workspace/isaaclab/docker/entrypoint.sh "$@"
+    exec /MeArmRL/docker/entrypoint.sh "$@"

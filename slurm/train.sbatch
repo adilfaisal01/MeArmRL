@@ -9,8 +9,13 @@
 # Submit from the directory containing your checkout of the repo:
 #   cd ~/MeArmRL && sbatch slurm/train.sbatch
 #
+# Prerequisites (one-time on the login node):
+#   docker login nvcr.io                                     # free NGC API key
+#   docker build -t mearmrl:local -f docker/Dockerfile .
+#   bash docker/cluster/build_sif.sh local "$HOME"           # produces a SIF
+#
 # The script bind-mounts:
-#   - your source checkout  -> /workspace/isaaclab/source/MeArmRL (edits take effect)
+#   - your source checkout  -> /MeArmRL/source/MeArmRL (edits take effect)
 #   - your per-user logs    -> /logs
 #   - your per-user cache   -> Isaac Sim cache dirs (shader/ComputeCache persist)
 
@@ -36,13 +41,22 @@ CHECKPOINT="${CHECKPOINT:-}"
 source "$(dirname "${BASH_SOURCE[0]}")/env.sh"
 
 # --- Container image ---------------------------------------------------------
-IMAGE="ghcr.io/adilfaisal01/mearmrl:0.1.0"
+# Default: the SIF built by `bash docker/cluster/build_sif.sh local "$HOME"`.
+# Override with: MEARMRL_IMAGE=/full/path/to/mearmrl.sif sbatch slurm/train.sbatch
+IMAGE="${MEARMRL_IMAGE:-${HOME}/mearmrl_local.sif}"
+if [ ! -f "${IMAGE}" ]; then
+    echo "[train.sbatch] ERROR: SIF '${IMAGE}' not found." >&2
+    echo "[train.sbatch] Build it first on the login node:" >&2
+    echo "[train.sbatch]   docker login nvcr.io && docker build -t mearmrl:local -f docker/Dockerfile ." >&2
+    echo "[train.sbatch]   bash docker/cluster/build_sif.sh local \"\$HOME\"" >&2
+    exit 1
+fi
 
 # --- Container mounts --------------------------------------------------------
 # Student source (editable install path) + per-user logs + per-user cache.
-# Cache paths follow the Isaac Lab docker layout (see /mnt/E/IsaacLab/docker).
+# Cache paths follow the Isaac Lab docker layout.
 MOUNTS=(
-    "${SLURM_SUBMIT_DIR}/source/MeArmRL:/workspace/isaaclab/source/MeArmRL"
+    "${SLURM_SUBMIT_DIR}/source/MeArmRL:/MeArmRL/source/MeArmRL"
     "${MEARMRL_JOB_LOGS}:/logs"
     "${MEARMRL_CACHE_ROOT}/kit:/isaac-sim/kit/cache"
     "${MEARMRL_CACHE_ROOT}/ov:/root/.cache/ov"
@@ -73,5 +87,5 @@ srun \
     --container-remap-root \
     --container-user=0 \
     "${MOUNT_ARGS[@]}" \
-    --container-workdir=/workspace/isaaclab \
-    /workspace/isaaclab/isaaclab.sh -p scripts/skrl/train.py "${TRAIN_ARGS[@]}"
+    --container-workdir=/MeArmRL \
+    /IsaacLab/isaaclab.sh -p scripts/skrl/train.py "${TRAIN_ARGS[@]}"
