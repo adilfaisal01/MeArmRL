@@ -13,6 +13,9 @@
 **/*.usda
 **/*.usdc
 **/*.usdz
+# Exception: the MATE connectors arm USD asset is committed so the
+# conversion output is available without re-running the importer.
+!source/MeArmRL/MeArmRL/robot_description/mate_connectors/isaac/assets/mate_connectors.usd
 
 # Python
 .DS_Store

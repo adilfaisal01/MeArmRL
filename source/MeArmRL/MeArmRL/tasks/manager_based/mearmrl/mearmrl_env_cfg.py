@@ -25,6 +25,13 @@ from . import mdp
 
 from isaaclab_assets.robots.cartpole import CARTPOLE_CFG  # isort:skip
 
+# MATE connectors arm (4-DOF servo arm with mimic-driven four-bar linkages).
+# The config lives with the robot description; the USD path is resolved
+# relative to that file so it works regardless of the working directory.
+from MeArmRL.robot_description.mate_connectors.isaac.mate_connectors_config import (  # isort:skip
+    MATE_CONNECTORS_CFG,
+)
+
 
 ##
 # Scene definition
