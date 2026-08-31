@@ -82,7 +82,7 @@ class CommandsCfg:
         asset_name="robot",
         body_name=_EE_BODY,
         resampling_time_range=(4.0, 4.0),
-        debug_vis=True,
+        debug_vis=False,
         ranges=mdp.UniformPoseCommandCfg.Ranges(
             pos_x=(0.05, 0.25),
             pos_y=(-0.15, 0.15),
