@@ -58,8 +58,19 @@ From: nvcr.io/nvidia/isaac-sim:5.1.0
     /IsaacLab/_isaac_sim/kit/python/bin/python3 -m pip install --no-cache-dir \
         "pip<25.0" "packaging<24.0"
 
+    # Pre-steps for build isolation (see docker/Dockerfile for details):
+    # setuptools<82 pins pkg_resources; flatdict==4.0.1 is sdist-only and its
+    # setup.py imports pkg_resources -> must build with --no-build-isolation.
+    /IsaacLab/isaaclab.sh -p -m pip install --no-cache-dir "setuptools<82.0.0"
+    /IsaacLab/isaaclab.sh -p -m pip install --no-cache-dir --no-build-isolation flatdict==4.0.1
+
     # Install Isaac Lab + deps into the Isaac Sim Python (torch, isaacsim-rl, extensions)
     ./isaaclab.sh --install
+
+    # isaaclab.sh --install uses `find -exec`, whose exit status comes from the
+    # LAST invocation -- an early failure (e.g. the core isaaclab package) is
+    # silently swallowed. Install the core explicitly so a failure aborts.
+    /IsaacLab/isaaclab.sh -p -m pip install --no-cache-dir -e /IsaacLab/source/isaaclab
 
     # RL stack on the Isaac Sim Python (never bare pip: two Pythons in here)
     /IsaacLab/isaaclab.sh -p -m pip install --no-cache-dir \

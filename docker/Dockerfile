@@ -71,8 +71,24 @@ RUN /IsaacLab/_isaac_sim/kit/python/bin/python3 -m pip install --no-cache-dir \
 
 # Install Isaac Lab + its dependencies into the Isaac Sim Python
 # (torch, isaacsim-rl, all Isaac Lab extensions)
+#
+# Pre-steps for build isolation:
+# - setuptools<82: isaaclab.sh pins it in the main env, but pip's ISOLATED
+#   build env would get latest setuptools, which removed pkg_resources.
+# - flatdict==4.0.1 is sdist-only and its setup.py imports pkg_resources, so
+#   it must build with --no-build-isolation against the pinned setuptools.
+RUN /IsaacLab/isaaclab.sh -p -m pip install --no-cache-dir "setuptools<82.0.0"
+
+RUN /IsaacLab/isaaclab.sh -p -m pip install --no-cache-dir --no-build-isolation flatdict==4.0.1
+
 RUN --mount=type=cache,target=/root/.cache/pip \
     ./isaaclab.sh --install
+
+# isaaclab.sh --install installs each extension via `find -exec`, whose exit
+# status comes from the LAST invocation -- an early failure (e.g. the core
+# isaaclab package) is silently swallowed. Install the core explicitly so a
+# failure fails the build.
+RUN /IsaacLab/isaaclab.sh -p -m pip install --no-cache-dir -e /IsaacLab/source/isaaclab
 
 # ---------------------------------------------------------------------------
 # RL stack on top of the Isaac Sim Python
