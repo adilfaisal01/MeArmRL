@@ -119,7 +119,7 @@ build).
 ## Testing
 
 ```bash
-# Static checks + build + list registered tasks (no GPU needed for list_envs)
+# Static checks + build + list registered tasks
 bash scripts/test_container.sh
 
 # Also run a zero-agent smoke test (requires an NVIDIA GPU)
@@ -128,6 +128,33 @@ bash scripts/test_container.sh --full
 # Skip the build (if the image is already built)
 bash scripts/test_container.sh --skip-build
 ```
+
+**A GPU is required even for `list_envs`.** `list_envs.py` launches
+`AppLauncher(headless=True)`, which boots Isaac Sim, and Isaac Sim hard-requires
+an NVIDIA driver (`libcuda.so.1`) even in headless mode — on a GPU-less
+machine, the PhysX fabric extension fails during app startup and the task
+table never prints. The pipeline's no-GPU value is the static checks + the
+build itself; anything that instantiates the sim app belongs on a GPU box.
+
+## Build gotchas (historical)
+
+Four non-obvious fixes are baked into the Dockerfile. Re-introducing any of
+these mistakes will produce a broken or failing build:
+
+1. **`USER root`** — the `nvcr.io/nvidia/isaac-sim:5.x` images default to a
+   non-root user (`isaac-sim`, uid 1234). Without `USER root`, `apt-get`
+   fails with exit 100 (`Permission denied` on `/var/lib/apt/lists`).
+2. **`ENV TERM=xterm`** — the base image sets `TERM=dumb`, which breaks
+   `tput` inside `isaaclab.sh` (`'ansi+tabs': unknown terminal type`).
+3. **`flatdict==4.0.1` pre-install with `--no-build-isolation`** — flatdict
+   is sdist-only and its `setup.py` imports `pkg_resources`, which pip's
+   isolated build env doesn't have (latest setuptools ≥82 removed it). The
+   pinned `setuptools<82` + `--no-build-isolation` pair fixes it.
+4. **Explicit core-isaaclab install after `--install`** — `isaaclab.sh
+   --install` uses `find -exec` whose exit status comes from the LAST
+   invocation, silently swallowing an early failure (this is how the core
+   package can go missing while the build "succeeds"). The explicit install
+   makes any such failure fail the build.
 
 ## Pinning
 

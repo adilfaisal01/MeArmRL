@@ -12,6 +12,10 @@
 #   3. Smoke test: list registered tasks inside the container
 #   4. (Optional) zero-agent run with a few envs to verify the env loads
 #
+# NOTE: stage 3 launches the sim app and therefore needs an NVIDIA GPU/driver
+# too (Isaac Sim requires libcuda even headless). On a GPU-less machine only
+# stages 1-2 can pass.
+#
 # Usage:
 #   bash scripts/test_container.sh            # static checks + build + list_envs
 #   bash scripts/test_container.sh --full     # also runs zero_agent smoke test
