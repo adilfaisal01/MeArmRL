@@ -46,7 +46,9 @@ From: nvcr.io/nvidia/isaac-sim:5.1.0
 
     export ISAACSIM_PATH=/isaac-sim
     export ISAACLAB_PATH=/IsaacLab
-    export PYTHONPATH=${ISAACLAB_PATH}/source:${PYTHONPATH}
+    export PYTHONPATH=${ISAACLAB_PATH}/source
+    # Base image sets TERM=dumb, which breaks tput inside isaaclab.sh
+    export TERM=xterm
     cd /IsaacLab
 
     # Link the Isaac Sim runtime so isaaclab.sh finds _isaac_sim/python.sh
@@ -57,7 +59,7 @@ From: nvcr.io/nvidia/isaac-sim:5.1.0
         "pip<25.0" "packaging<24.0"
 
     # Install Isaac Lab + deps into the Isaac Sim Python (torch, isaacsim-rl, extensions)
-    TERM=xterm ./isaaclab.sh --install
+    ./isaaclab.sh --install
 
     # RL stack on the Isaac Sim Python (never bare pip: two Pythons in here)
     /IsaacLab/isaaclab.sh -p -m pip install --no-cache-dir \
@@ -78,7 +80,8 @@ From: nvcr.io/nvidia/isaac-sim:5.1.0
     export PRIVACY_CONSENT=Y
     export XDG_RUNTIME_DIR=/tmp/xdg
     export ISAACLAB_PATH=/IsaacLab
-    export PYTHONPATH=/IsaacLab/source:/MeArmRL/source:${PYTHONPATH}
+    export PYTHONPATH=/IsaacLab/source:/MeArmRL/source
+    export TERM=xterm
 
 %runscript
     exec /MeArmRL/docker/entrypoint.sh "$@"

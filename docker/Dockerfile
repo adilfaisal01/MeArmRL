@@ -55,7 +55,10 @@ RUN git clone --depth=1 --branch v2.3.2 https://github.com/isaac-sim/IsaacLab.gi
 
 ENV ISAACSIM_PATH=/isaac-sim
 ENV ISAACLAB_PATH=/IsaacLab
-ENV PYTHONPATH=${ISAACLAB_PATH}/source:${PYTHONPATH}
+ENV PYTHONPATH=/IsaacLab/source
+# The base image sets TERM=dumb, which breaks tput calls inside isaaclab.sh
+# ('ansi+tabs': unknown terminal type). xterm is always available via terminfo.
+ENV TERM=xterm
 
 WORKDIR /IsaacLab
 
@@ -69,7 +72,7 @@ RUN /IsaacLab/_isaac_sim/kit/python/bin/python3 -m pip install --no-cache-dir \
 # Install Isaac Lab + its dependencies into the Isaac Sim Python
 # (torch, isaacsim-rl, all Isaac Lab extensions)
 RUN --mount=type=cache,target=/root/.cache/pip \
-    TERM=xterm ./isaaclab.sh --install
+    ./isaaclab.sh --install
 
 # ---------------------------------------------------------------------------
 # RL stack on top of the Isaac Sim Python
@@ -104,6 +107,6 @@ ENV OMNI_KIT_ALLOW_ROOT=1 \
     PRIVACY_CONSENT=Y \
     XDG_RUNTIME_DIR=/tmp/xdg \
     ISAACLAB_PATH=/IsaacLab \
-    PYTHONPATH=/IsaacLab/source:/MeArmRL/source:${PYTHONPATH}
+    PYTHONPATH=/IsaacLab/source:/MeArmRL/source
 
 ENTRYPOINT ["/MeArmRL/docker/entrypoint.sh"]
