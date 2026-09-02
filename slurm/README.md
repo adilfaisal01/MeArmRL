@@ -203,7 +203,9 @@ window; files save directly to HPC. Submit from the integrated terminal.
 cd ~/MeArmRL && sbatch slurm/train.sbatch
 ```
 
-Override training args per job:
+Override training args per job (defaults: `Mearmrl-Reach-v0`, 1024 envs,
+4800 iterations; the cartpole template task is available as a known-good
+control via `TASK=Template-Mearmrl-v0`):
 
 ```bash
 TASK=Template-Mearmrl-v0 NUM_ENVS=128 MAX_ITERATIONS=2000 sbatch slurm/train.sbatch

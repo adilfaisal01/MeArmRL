@@ -31,9 +31,9 @@
 set -euo pipefail
 
 # --- Task / training args (override per job) --------------------------------
-TASK="${TASK:-Template-Mearmrl-v0}"
-NUM_ENVS="${NUM_ENVS:-64}"
-MAX_ITERATIONS="${MAX_ITERATIONS:-1000}"
+TASK="${TASK:-Mearmrl-Reach-v0}"
+NUM_ENVS="${NUM_ENVS:-1024}"
+MAX_ITERATIONS="${MAX_ITERATIONS:-4800}"
 SEED="${SEED:-42}"
 CHECKPOINT="${CHECKPOINT:-}"
 
