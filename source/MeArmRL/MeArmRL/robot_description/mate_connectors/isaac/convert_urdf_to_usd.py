@@ -173,10 +173,21 @@ def main() -> int:
                         axis_attr = prim.CreateAttribute(f"physxMimicJoint:{inst}:referenceJointAxis", Sdf.ValueTypeNames.token)
                     axis_attr.Set(f"rot{ref_axis}")
                 gearing_attr = prim.CreateAttribute(f"physxMimicJoint:{inst}:gearing", Sdf.ValueTypeNames.Float)
-                gearing_attr.Set(mimic_info[1])
+                # Empirically the PhysX mimic relation in the imported joint
+                # frames negates the URDF <mimic> multiplier (measured on the
+                # claw pair and rigging chain), so negate to recover the URDF
+                # kinematics.
+                gearing_attr.Set(-mimic_info[1])
                 offset_attr = prim.CreateAttribute(f"physxMimicJoint:{inst}:offset", Sdf.ValueTypeNames.Float)
                 offset_attr.Set(mimic_info[2])
-                mimics_repaired.append(f"{prim.GetName()} ref={ref_name} axis=rot{ref_axis} gearing={mimic_info[1]}")
+                # Importer defaults (naturalFrequency=25, dampingRatio=0.005) are
+                # so soft and underdamped that gravity sags followers into their
+                # limit stops. Stiff + critically damped tracks the master.
+                freq_attr = prim.CreateAttribute(f"physxMimicJoint:{inst}:naturalFrequency", Sdf.ValueTypeNames.Float)
+                freq_attr.Set(100.0)
+                damp_attr = prim.CreateAttribute(f"physxMimicJoint:{inst}:dampingRatio", Sdf.ValueTypeNames.Float)
+                damp_attr.Set(1.0)
+                mimics_repaired.append(f"{prim.GetName()} ref={ref_name} axis=rot{ref_axis} gearing={mimic_info[1]} stiff")
 
     report = [f"Limits restored on {limits_restored} revolute joints", f"Mimic repairs: {mimics_repaired}"]
     with open("/tmp/opencode/convert_repairs.txt", "w") as f:
