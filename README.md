@@ -12,6 +12,43 @@ It allows you to develop in an isolated environment, outside of the core Isaac L
 
 **Keywords:** extension, template, isaaclab
 
+## Training the MATE connectors arm (e2e RL)
+
+The arm task is `Mearmrl-Reach-v0`: move the 4-DOF MATE connectors arm's
+end-effector (`effector_claw_right`) to a randomly sampled pose. The arm USD
+(`source/MeArmRL/MeArmRL/robot_description/mate_connectors/isaac/assets/mate_connectors.usd`)
+is committed and verified; no conversion step is needed to train.
+
+All commands below run inside the container (see `docker/README.md` for build
+and X11/GUI setup). `docker compose --profile dev run --rm mearmrl` drops into
+an interactive shell with the source bind-mounted.
+
+```bash
+# quick sanity check: the arm builds, articulation has 14 joints, env steps
+/IsaacLab/isaaclab.sh -p scripts/zero_agent.py --task=Mearmrl-Reach-v0 --num_envs=4 --headless
+
+# train (PPO via skrl); checkpoints land in logs/skrl/mearmrl-reach/<timestamp>/checkpoints/
+/IsaacLab/isaaclab.sh -p scripts/skrl/train.py --task=Mearmrl-Reach-v0 --num_envs=1024 --headless --seed=42
+
+# play a trained checkpoint (add X11 mounts and drop --headless to watch it)
+/IsaacLab/isaaclab.sh -p scripts/skrl/play.py --task=Mearmrl-Reach-v0 --num_envs=8 \
+    --checkpoint=/MeArmRL/logs/skrl/mearmrl-reach/<timestamp>/checkpoints/agent_4800.pt --headless
+```
+
+Notes:
+
+- `Mearmrl-Reach-v0` drives the 4 actuated joints (`revolute_base`,
+  `revolute_left`, `revolute_right`, `rev_end_effector1`); the four-bar
+  linkage followers are mimic-driven by PhysX. Rewards track the claw pose
+  against a resampled pose command.
+- Actuator gains in `mate_connectors_config.py` (stiffness 5000, damping 200)
+  are intentionally far above datasheet values: PhysX implicit drives act
+  orders of magnitude weaker than configured on these gram-scale links.
+- `Template-Mearmrl-v0` is the untouched cartpole template — useful as a
+  known-good control when debugging the arm env.
+- To regenerate the USD from the URDF (rarely needed; requires a GPU):
+  `IsaacLab/isaaclab.sh -p source/MeArmRL/MeArmRL/robot_description/mate_connectors/isaac/convert_urdf_to_usd.py --headless`
+
 ## Installation
 
 - Install Isaac Lab by following the [installation guide](https://isaac-sim.github.io/IsaacLab/main/source/setup/installation/index.html).
