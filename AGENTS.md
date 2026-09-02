@@ -16,7 +16,7 @@ Isaac Lab 2.3.2 extension template for a MeArm robot arm, on Isaac Sim 5.1.0. Th
 
 ## Registered tasks
 
-`Template-Mearmrl-v0` and `Mearmrl-Reach-v0` are registered in `source/MeArmRL/MeArmRL/tasks/manager_based/mearmrl/__init__.py`. `scripts/list_envs.py` hardcodes the `Template-` keyword filter — if you rename a task, update that filter.
+`Template-Mearmrl-v0`, `Mearmrl-Reach-v0`, and `Mearmrl-Reach-Student-v0` are registered in `source/MeArmRL/MeArmRL/tasks/manager_based/mearmrl/__init__.py`. `Mearmrl-Reach-Student-v0` is the week-01 lab task: its cfg (`reach_student_cfg.py`) subclasses the reach env and only overrides `rewards`/`curriculum`; `scripts/check_week01.py` verifies nothing else drifted. `scripts/list_envs.py` hardcodes the `Template-` keyword filter — if you rename a task, update that filter.
 
 ## Container image (student-built, no registry)
 
