@@ -3,7 +3,8 @@
 **Estimated time:** 2-4 hours (including training waits)
 **Deliverables:** answers to the questions below + one modified reward config + one training run (log directory)
 
-> **Golden rule: you edit exactly one file — `reach_student_cfg.py`.**
+> **Golden rule: you edit exactly two files — `reach_student_cfg.py` and
+> `skrl_ppo_student_cfg.yaml`.**
 > The robot, scene, sensors, actions, observations, commands and terminations
 > are inherited from the base reach environment and are not yours to change.
 > `scripts/check_week01.py` verifies this before you submit.
@@ -17,7 +18,9 @@ By the end of this lab you can:
    how per-step values become the logged episode return.
 3. Run controlled one-variable reward experiments and predict/observe their
    effect on training (reward hacking, jitter, sparse signal).
-4. Write a new reward function, register it as a `RewTerm`, and train a PPO
+4. Tune a PPO hyperparameter in the skrl config and see its effect on the
+   reward curve.
+5. Write a new reward function, register it as a `RewTerm`, and train a PPO
    policy with skrl to compare against a baseline.
 
 ## Setup
@@ -26,7 +29,7 @@ Everything runs inside the course Docker image (see `docker/README.md` for the
 one-time build). From the repo's `docker/` directory:
 
 ```bash
-docker compose --profile dev run --rm mearmrl     # interactive shell
+docker compose --profile dev run --rm dev        # interactive shell
 # inside the container:
 /IsaacLab/isaaclab.sh -p scripts/zero_agent.py --task=Mearmrl-Reach-v0 --num_envs=4 --headless
 ```
@@ -71,8 +74,9 @@ smooth, slow motion *later* in training but not from the start?
 
 ## Part 2 — One-variable calibration (45 min)
 
-In `StudentRewardsCfg`, change **one** thing per run and record the result.
-Use the same fixed budget for each run:
+In `StudentRewardsCfg` (rewards) or `skrl_ppo_student_cfg.yaml` (PPO
+hyperparameters), change **one** thing per run and record the result. Use the
+same fixed budget for each run:
 
 ```bash
 /IsaacLab/isaaclab.sh -p scripts/skrl/train.py --task=Mearmrl-Reach-Student-v0 \
@@ -84,11 +88,13 @@ Use the same fixed budget for each run:
 | A | `end_effector_position_tracking` weight `-0.2` → `-2.0` | | |
 | B | `action_rate` and `joint_vel` weights → `0.0` | | |
 | C | `end_effector_position_tracking_fine_grained` std `0.1` → `0.02` | | |
+| D | `agent.learning_rate` `5.0e-04` → `5.0e-03` (in `skrl_ppo_student_cfg.yaml`) | | |
 
 Before each run, write your prediction in the table. After each run, note what
 the reward curve actually did. Watch for: reward hacking (a term dominating
-everything), jitter (no smoothness penalty), and a stalled curve (signal too
-sparse to learn from). Commit your changes on a branch named `week01-<yourname>`.
+everything), jitter (no smoothness penalty), a stalled curve (signal too
+sparse to learn from), and an unstable curve (learning rate too high). Commit
+your changes on a branch named `week01-<yourname>`.
 
 ## Part 3 — Write a new reward term (45 min)
 
@@ -163,12 +169,14 @@ Verify the policy loads and steps:
 ## Submission checklist
 
 - [ ] Branch `week01-<yourname>` with your changes to `reach_student_cfg.py`
+      and `skrl_ppo_student_cfg.yaml`
 - [ ] Answers to Q1-Q3 (a few sentences each)
-- [ ] Part 2 results table (predicted vs. observed for runs A, B, C)
+- [ ] Part 2 results table (predicted vs. observed for runs A, B, C, D)
 - [ ] Your `reach_progress_bonus` function + registered `RewTerm`
 - [ ] `scripts/check_week01.py` exits 0 (paste the output) — this includes the
-      git-diff allowlist check: only `reach_student_cfg.py` may be modified
-      (add your answers file with `--allow <path>` if it is tracked)
+      git-diff allowlist check: only `reach_student_cfg.py` and
+      `skrl_ppo_student_cfg.yaml` may be modified (add your answers file with
+      `--allow <path>` if it is tracked)
 - [ ] Your training `logs/skrl/mearmrl-reach/<timestamp>/` directory (params +
       event file; checkpoints can be excluded if large)
 - [ ] One paragraph interpreting your reward curve vs. the baseline
@@ -176,17 +184,19 @@ Verify the policy loads and steps:
 ## Troubleshooting
 
 - **`/IsaacLab/isaaclab.sh: no such file`** — you are on the host, not in the
-  container. Prefix with `docker compose --profile dev run --rm mearmrl`.
+  container. Prefix with `docker compose --profile dev run --rm dev`.
 - **`libcuda.so.1: cannot open shared object file`** — no GPU passed through.
   The container needs `--gpus all` (compose handles it); the driver must work
   on the host (`nvidia-smi`).
 - **`check_week01.py` reports a `[FROZEN]` section** — you edited something
-  outside `reach_student_cfg.py`. Revert it (`git checkout -- <file>`).
+  outside the two student files. Revert it (`git checkout -- <file>`).
 - **`[CURRICULUM]` error** — you renamed/removed a reward term that a
   curriculum term targets. Keep the term name or update the curriculum.
-- **`[GIT]` error** — the diff against `master` shows files other than
-  `reach_student_cfg.py`, or you never modified the student config. Commit your
-  work on a branch and revert any edits outside the student file.
+- **`[SKRL]` error** — `skrl_ppo_student_cfg.yaml` is malformed or you changed
+  `agent.experiment.directory`. Fix the YAML or revert that line.
+- **`[GIT]` error** — the diff against `master` shows files other than the two
+  student files, or you never modified them. Commit your work on a branch and
+  revert any edits outside the student files.
 - **Training crashes at ~step 4500** — a curriculum term points at a reward
   term that no longer exists. Run `check_week01.py` to find it.
 - **Everything else**: see `docker/README.md` and the README's arm section.

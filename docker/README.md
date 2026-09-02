@@ -48,20 +48,28 @@ only the layer containing your code changes.
 ```bash
 cd docker
 
-# Interactive shell (bind-mounts your source automatically)
-docker compose --profile dev run --rm mearmrl
+# Headless training (default service). Configure with env vars, either inline
+# or via docker/.env (copy .env.example):
+docker compose up
 
-# Headless training
-docker compose --profile train run --rm mearmrl \
-    --task=Template-Mearmrl-v0 --num_envs=64 --max_iterations=1000
+# One-off training that removes the container when it exits:
+docker compose run --rm mearmrl
+
+# Configure a run (defaults: Mearmrl-Reach-Student-v0, 1024 envs, seed 42, 4800 iters):
+TASK=Mearmrl-Reach-Student-v0 NUM_ENVS=512 MAX_ITERATIONS=2000 docker compose up
+
+# Interactive shell (bind-mounts your source automatically)
+docker compose --profile dev run --rm dev
 
 # One-off command inside the dev container
-docker compose --profile dev run --rm mearmrl \
+docker compose --profile dev run --rm dev \
     /IsaacLab/isaaclab.sh -p scripts/list_envs.py
 ```
 
 Named volumes persist the Isaac Sim caches (shaders, GL, ComputeCache) across
-runs, so only the first run pays the warm-up cost.
+runs, so only the first run pays the warm-up cost. `docker compose up` leaves
+the exited container around — run `docker compose down` to clean up, or use
+`docker compose run --rm mearmrl` for a self-cleaning one-off.
 
 ### Option 2: the `dev_local.sh` wrapper
 
@@ -81,7 +89,7 @@ To launch Isaac Sim's viewer from the container, add X11 mounts to your
 xhost +   # on the host (restrict with 'xhost +local:' if you prefer)
 docker compose --profile dev run --rm \
     -e DISPLAY -v "$HOME/.Xauthority:/root/.Xauthority" \
-    -v /tmp/.X11-unix:/tmp/.X11-unix mearmrl
+    -v /tmp/.X11-unix:/tmp/.X11-unix dev
 ```
 
 This works because the base image is the full `nvcr.io/nvidia/isaac-sim`

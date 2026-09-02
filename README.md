@@ -25,11 +25,11 @@ one-liner from the `docker/` directory:
 
 ```bash
 cd docker
-docker compose --profile dev run --rm mearmrl /IsaacLab/isaaclab.sh -p scripts/zero_agent.py ...
+docker compose --profile dev run --rm dev /IsaacLab/isaaclab.sh -p scripts/zero_agent.py ...
 ```
 
 or after dropping into an interactive shell (`docker compose --profile dev run
---rm mearmrl`, see `docker/README.md` for build and X11/GUI setup; the source
+--rm dev`, see `docker/README.md` for build and X11/GUI setup; the source
 tree is bind-mounted so edits take effect without a rebuild).
 
 ```bash
@@ -44,13 +44,14 @@ tree is bind-mounted so edits take effect without a rebuild).
     --checkpoint=/MeArmRL/logs/skrl/mearmrl-reach/<timestamp>/checkpoints/agent_4800.pt --headless
 ```
 
-Equivalent single-shot training without an interactive shell (note: args after
-the service name REPLACE the container command, so pass the full command):
+Headless training without an interactive shell — `docker compose up` runs the
+`mearmrl` service, configured via env vars (defaults: `Mearmrl-Reach-Student-v0`, 1024
+envs, seed 42, 4800 iterations; see `docker/.env.example`):
 
 ```bash
 cd docker
-docker compose --profile train run --rm mearmrl \
-    /IsaacLab/isaaclab.sh -p scripts/skrl/train.py --task=Mearmrl-Reach-v0 --num_envs=1024 --headless --seed=42
+docker compose up
+TASK=Mearmrl-Reach-Student-v0 NUM_ENVS=512 MAX_ITERATIONS=2000 docker compose up
 ```
 
 Notes:

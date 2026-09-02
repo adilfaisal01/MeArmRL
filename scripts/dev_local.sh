@@ -47,6 +47,7 @@ exec docker run --rm --gpus all \
     -e ISAACLAB_PATH=/IsaacLab \
     -e PYTHONPATH=/IsaacLab/source:/MeArmRL/source \
     -v "${REPO_ROOT}/source/MeArmRL:/MeArmRL/source/MeArmRL" \
+    -v "${REPO_ROOT}/logs:/MeArmRL/logs" \
     -v "${REPO_ROOT}/logs:/logs" \
     -w /MeArmRL \
     "${IMAGE}" \

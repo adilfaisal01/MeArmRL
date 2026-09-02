@@ -10,13 +10,13 @@ Isaac Lab 2.3.2 extension template for a MeArm robot arm, on Isaac Sim 5.1.0. Th
 
 - The Python entrypoint is `isaaclab.sh -p` (the Isaac Sim Python), **not** `python` or bare `pip` — the container has two Pythons (Isaac Sim's at `/isaac-sim/python.sh`, apt's at `/usr/bin/python3`) and only the former has Isaac Lab. Inside the container: `/IsaacLab/isaaclab.sh -p scripts/skrl/train.py ...`.
 - Build the image: `docker login nvcr.io` (free NGC API key, one-time) then `docker build -t mearmrl:local -f docker/Dockerfile .`.
-- Local dev, two equivalent routes: `bash scripts/dev_local.sh --task=Template-Mearmrl-v0 --num_envs=64 --headless` (minimal) or `docker compose --profile dev run --rm mearmrl` from `docker/` (persistent Isaac Sim cache volumes). `--shell` drops into a bash.
+- Local dev, two equivalent routes: `bash scripts/dev_local.sh --task=Template-Mearmrl-v0 --num_envs=64 --headless` (minimal) or `docker compose up` from `docker/` (persistent Isaac Sim cache volumes; configure training via `TASK=`/`NUM_ENVS=`/`SEED=`/`MAX_ITERATIONS=` env vars, see `docker/.env.example`). Interactive shell: `docker compose --profile dev run --rm dev`. `--shell` drops into a bash.
 - Container layout: `/isaac-sim` (Isaac Sim runtime), `/IsaacLab` (Isaac Lab clone), `/MeArmRL` (this repo). The workspace root inside the container is `/MeArmRL`, not the old `/workspace/isaaclab`.
 - Install in editable mode: `/IsaacLab/isaaclab.sh -p -m pip install -e source/MeArmRL`.
 
 ## Registered tasks
 
-`Template-Mearmrl-v0`, `Mearmrl-Reach-v0`, and `Mearmrl-Reach-Student-v0` are registered in `source/MeArmRL/MeArmRL/tasks/manager_based/mearmrl/__init__.py`. `Mearmrl-Reach-Student-v0` is the week-01 lab task: its cfg (`reach_student_cfg.py`) subclasses the reach env and only overrides `rewards`/`curriculum`; `scripts/check_week01.py` verifies nothing else drifted. `scripts/list_envs.py` hardcodes the `Template-` keyword filter — if you rename a task, update that filter.
+`Template-Mearmrl-v0`, `Mearmrl-Reach-v0`, and `Mearmrl-Reach-Student-v0` are registered in `source/MeArmRL/MeArmRL/tasks/manager_based/mearmrl/__init__.py`. `Mearmrl-Reach-Student-v0` is the week-01 lab task: its cfg (`reach_student_cfg.py`) subclasses the reach env and only overrides `rewards`/`curriculum`, and it uses its own skrl config (`agents/skrl_ppo_student_cfg.yaml`) so PPO hyperparameter tuning can't affect the baseline; `scripts/check_week01.py` verifies nothing else drifted. `scripts/list_envs.py` hardcodes the `Template-` keyword filter — if you rename a task, update that filter.
 
 ## Container image (student-built, no registry)
 

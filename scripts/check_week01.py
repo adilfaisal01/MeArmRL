@@ -61,8 +61,11 @@ from isaaclab_tasks.utils import parse_env_cfg
 FROZEN_SECTIONS = ("scene", "observations", "actions", "commands", "terminations", "events", "sim", "viewer")
 # Scalar settings that must match the base env.
 FROZEN_SETTINGS = ("episode_length_s", "decimation")
-# The only file students may modify (relative to the repo root).
-STUDENT_FILE = "source/MeArmRL/MeArmRL/tasks/manager_based/mearmrl/reach_student_cfg.py"
+# The only files students may modify (relative to the repo root).
+STUDENT_FILES = {
+    "source/MeArmRL/MeArmRL/tasks/manager_based/mearmrl/reach_student_cfg.py",
+    "source/MeArmRL/MeArmRL/tasks/manager_based/mearmrl/agents/skrl_ppo_student_cfg.yaml",
+}
 # Repo root (two levels up from this script).
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
@@ -81,8 +84,8 @@ def stable_repr(obj):
 
 
 def check_git_diff(problems):
-    """Verify the git diff only touches the student config file."""
-    allowed = {STUDENT_FILE, *args_cli.allow}
+    """Verify the git diff only touches the student config files."""
+    allowed = {*STUDENT_FILES, *args_cli.allow}
     result = subprocess.run(
         ["git", "diff", "--name-only", args_cli.base_branch],
         capture_output=True,
@@ -99,8 +102,29 @@ def check_git_diff(problems):
     outside = [path for path in changed if path not in allowed]
     if outside:
         problems.append(f"[GIT] files outside the student config were modified: {outside}")
-    if STUDENT_FILE not in changed:
-        problems.append(f"[GIT] '{STUDENT_FILE}' was not modified — did you do the assignment?")
+    if not any(path in changed for path in STUDENT_FILES):
+        problems.append("[GIT] none of the student files were modified — did you do the assignment?")
+
+
+def check_skrl_cfg(problems):
+    """Validate the student skrl config parses and keeps the log directory."""
+    import yaml
+
+    cfg_path = REPO_ROOT / "source/MeArmRL/MeArmRL/tasks/manager_based/mearmrl/agents/skrl_ppo_student_cfg.yaml"
+    try:
+        with open(cfg_path, encoding="utf-8") as f:
+            cfg = yaml.full_load(f)
+    except Exception as e:
+        problems.append(f"[SKRL] could not parse skrl_ppo_student_cfg.yaml: {e}")
+        return
+    if not isinstance(cfg, dict):
+        problems.append("[SKRL] skrl_ppo_student_cfg.yaml must be a YAML mapping.")
+        return
+    for key in ("models", "memory", "agent", "trainer"):
+        if key not in cfg:
+            problems.append(f"[SKRL] skrl_ppo_student_cfg.yaml is missing the top-level '{key}' key.")
+    if cfg.get("agent", {}).get("experiment", {}).get("directory") != "mearmrl-reach":
+        problems.append("[SKRL] keep agent.experiment.directory = 'mearmrl-reach' so logs land where the lab expects.")
 
 
 def main():
@@ -132,10 +156,13 @@ def main():
                 "which does not exist in StudentRewardsCfg."
             )
 
-    # 4) git diff must only touch the student config file
+    # 4) git diff must only touch the student config files
     check_git_diff(problems)
 
-    # 5) optional smoke test: run the student env with zero actions
+    # 5) student skrl config must parse and keep the log directory
+    check_skrl_cfg(problems)
+
+    # 6) optional smoke test: run the student env with zero actions
     if args_cli.smoke:
         smoke_cfg = parse_env_cfg("Mearmrl-Reach-Student-v0", device=args_cli.device, num_envs=args_cli.num_envs)
         env = gym.make("Mearmrl-Reach-Student-v0", cfg=smoke_cfg)

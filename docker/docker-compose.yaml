@@ -5,20 +5,15 @@
 
 # MeArmRL local development with Docker Compose.
 #
-# Two profiles on the same image:
-#   dev    -- interactive bash, bind-mounted source (reward-function debugging)
-#   train  -- headless training run
+#   docker compose up                          # headless training (default service)
+#   docker compose run --rm mearmrl            # one-off training, removes container
+#   docker compose --profile dev run --rm dev  # interactive bash
 #
-# Named volumes persist the Isaac Sim caches (shaders, GL, ComputeCache) across
-# runs, so only the first run pays the warm-up cost.
-#
-# Usage:
-#   docker compose build                                            # build the image
-#   docker compose --profile dev run --rm mearmrl                   # interactive shell
-#   docker compose --profile dev run --rm mearmrl \
-#       /IsaacLab/isaaclab.sh -p scripts/list_envs.py               # one-off command
-#   docker compose --profile train run --rm mearmrl \
-#       --task=Template-Mearmrl-v0 --num_envs=64 --headless         # training
+# Training is configured with environment variables (defaults in brackets):
+#   TASK=Mearmrl-Reach-Student-v0  NUM_ENVS=1024  SEED=42  MAX_ITERATIONS=4800
+# Set them inline (TASK=... docker compose up) or copy docker/.env.example to
+# docker/.env and edit. Named volumes persist the Isaac Sim caches (shaders,
+# GL, ComputeCache) across runs, so only the first run pays the warm-up cost.
 #
 # GUI / X11 (optional, not enabled by default): add
 #   -e DISPLAY -v $HOME/.Xauthority:/root/.Xauthority -v /tmp/.X11-unix:/tmp/.X11-unix
@@ -43,6 +38,12 @@ services:
       - type: bind
         source: ../source/MeArmRL
         target: /MeArmRL/source/MeArmRL
+      # Training logs: train.py writes to cwd-relative "logs/", i.e.
+      # /MeArmRL/logs, so mount the host logs dir there (and keep /logs for
+      # the entrypoint writability check).
+      - type: bind
+        source: ../logs
+        target: /MeArmRL/logs
       - type: bind
         source: ../logs
         target: /logs
@@ -68,12 +69,15 @@ services:
               capabilities: [gpu]
     entrypoint: /MeArmRL/docker/entrypoint.sh
     working_dir: /MeArmRL
-    profiles: ["train"]
     command:
       - /IsaacLab/isaaclab.sh
       - -p
       - scripts/skrl/train.py
+      - --task=${TASK:-Mearmrl-Reach-Student-v0}
+      - --num_envs=${NUM_ENVS:-1024}
       - --headless
+      - --seed=${SEED:-42}
+      - --max_iterations=${MAX_ITERATIONS:-4800}
 
   dev:
     image: mearmrl:local
