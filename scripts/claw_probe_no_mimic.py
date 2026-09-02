@@ -72,32 +72,29 @@ def main():
 
     out = []
 
-    def run_phase(label, claw_target, steps=120):
-        env.reset()
+    out_fh = open("/tmp/opencode/claw_no_mimic.txt", "w")
+
+    def run_phase(label, claw_target, steps=100):
         for _ in range(steps):
-            with torch.inference_mode():
-                actions = torch.zeros(env.action_space.shape, device=env.unwrapped.device)
-                actions[0, CLAW_IDX] = claw_target
-                env.step(actions)
-        with torch.inference_mode():
-            pos = robot.data.joint_pos[0].cpu()
-            vel = robot.data.joint_vel[0].cpu()
+            actions = torch.zeros(env.action_space.shape, device=env.unwrapped.device)
+            actions[0, CLAW_IDX] = claw_target
+            env.step(actions)
+        pos = robot.data.joint_pos[0].cpu()
+        vel = robot.data.joint_vel[0].cpu()
         names = list(robot.joint_names)
         readback = {n: round(float(pos[i]), 3) for i, n in enumerate(names)}
         claw = float(pos[-2])
         claw2 = float(pos[-1])
         line = f"{label}: claw={claw:.4f} claw2={claw2:.4f} vel={float(vel[-2]):.4f}"
-        out.append(line)
-        print(f"[CLAW2] {line}")
-        print(f"[CLAW2]   all: {readback}")
+        out_fh.write(line + "\n" + f"  all: {readback}\n")
+        out_fh.flush()
 
     run_phase("rest (target 0)", 0.0)
-    run_phase("target +0.4", 0.4)
+    run_phase("target +0.35", 0.35)
     run_phase("target -0.5", -0.5)
     run_phase("target 0 again", 0.0)
 
-    with open("/tmp/opencode/claw_no_mimic.txt", "w") as fh:
-        fh.write("\n".join(out) + "\n")
+    out_fh.close()
     env.close()
 
 

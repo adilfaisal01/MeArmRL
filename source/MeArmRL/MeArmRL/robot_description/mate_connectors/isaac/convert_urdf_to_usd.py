@@ -106,7 +106,11 @@ def main() -> int:
             urdf_limits[name] = (float(lim.get("lower")), float(lim.get("upper")))  # pyright: ignore[reportArgumentType]
         mimic = joint.find("mimic")
         if mimic is not None:
-            urdf_mimics[name] = mimic.get("joint")
+            urdf_mimics[name] = (
+                mimic.get("joint"),
+                float(mimic.get("multiplier", 1.0)),  # pyright: ignore[reportArgumentType]
+                float(mimic.get("offset", 0.0)),  # pyright: ignore[reportArgumentType]
+            )
 
     # Work on the flattened stage: a single layer, so post-import repairs
     # author correctly (the importer writes a layer-stack where editing the
@@ -138,7 +142,6 @@ def main() -> int:
         rj.GetUpperLimitAttr().Set(math.degrees(hi))
         limits_restored += 1
 
-    # 2) Repair empty PhysxMimicJointAPI referenceJoint relationships.
     mimics_repaired = []
     for prim in flat_stage.Traverse():
         for schema in prim.GetAppliedSchemas():
@@ -149,14 +152,33 @@ def main() -> int:
             rel = prim.GetRelationship(rel_name)
             if rel is None:
                 rel = prim.CreateRelationship(rel_name)
-            if rel.GetTargets():
-                continue
-            ref_name = urdf_mimics.get(prim.GetName())
-            if ref_name and ref_name in joint_paths:
-                rel.SetTargets([Sdf.Path(joint_paths[ref_name])])
-                mimics_repaired.append(f"{prim.GetName()} -> {ref_name}")
+            mimic_info = urdf_mimics.get(prim.GetName())
+            if not rel.GetTargets() and mimic_info is not None:
+                ref_name = mimic_info[0]
+                if ref_name in joint_paths:
+                    rel.SetTargets([Sdf.Path(joint_paths[ref_name])])
+                    mimics_repaired.append(f"{prim.GetName()} -> {ref_name}")
+            if mimic_info is not None:
+                # The importer writes referenceJointAxis=rotX for every mimic,
+                # but the reference joints rotate about their own physics:axis
+                # (Y for the booms/rigging, Z for the claw). A wrong axis makes
+                # the mimic track a constant instead of the actual rotation,
+                # which jams the whole four-bar system at its limit stops.
+                ref_name = mimic_info[0]
+                ref_prim = flat_stage.GetPrimAtPath(joint_paths.get(ref_name, "/"))
+                ref_axis = ref_prim.GetAttribute("physics:axis").Get() if ref_prim and ref_prim.IsValid() else None
+                if ref_axis is not None:
+                    axis_attr = prim.GetAttribute(f"physxMimicJoint:{inst}:referenceJointAxis")
+                    if axis_attr is None:
+                        axis_attr = prim.CreateAttribute(f"physxMimicJoint:{inst}:referenceJointAxis", Sdf.ValueTypeNames.token)
+                    axis_attr.Set(f"rot{ref_axis}")
+                gearing_attr = prim.CreateAttribute(f"physxMimicJoint:{inst}:gearing", Sdf.ValueTypeNames.Float)
+                gearing_attr.Set(mimic_info[1])
+                offset_attr = prim.CreateAttribute(f"physxMimicJoint:{inst}:offset", Sdf.ValueTypeNames.Float)
+                offset_attr.Set(mimic_info[2])
+                mimics_repaired.append(f"{prim.GetName()} ref={ref_name} axis=rot{ref_axis} gearing={mimic_info[1]}")
 
-    report = [f"Limits restored on {limits_restored} revolute joints", f"Mimic refs repaired: {mimics_repaired}"]
+    report = [f"Limits restored on {limits_restored} revolute joints", f"Mimic repairs: {mimics_repaired}"]
     with open("/tmp/opencode/convert_repairs.txt", "w") as f:
         f.write("\n".join(report) + "\n")
 
