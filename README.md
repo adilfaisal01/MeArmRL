@@ -44,6 +44,15 @@ tree is bind-mounted so edits take effect without a rebuild).
     --checkpoint=/MeArmRL/logs/skrl/mearmrl-reach/<timestamp>/checkpoints/agent_4800.pt --headless
 ```
 
+Equivalent single-shot training without an interactive shell (note: args after
+the service name REPLACE the container command, so pass the full command):
+
+```bash
+cd docker
+docker compose --profile train run --rm mearmrl \
+    /IsaacLab/isaaclab.sh -p scripts/skrl/train.py --task=Mearmrl-Reach-v0 --num_envs=1024 --headless --seed=42
+```
+
 Notes:
 
 - `Mearmrl-Reach-v0` drives the 4 actuated joints (`revolute_base`,
