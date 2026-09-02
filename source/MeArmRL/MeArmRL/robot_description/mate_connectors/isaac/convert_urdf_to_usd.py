@@ -92,23 +92,100 @@ def main() -> int:
     )
     print(f"Imported USD: {result}")
 
-    from pxr import Usd
+    from pxr import Sdf, Usd, UsdPhysics
 
+    # Parse URDF joint limits and <mimic> references once.
+    import xml.etree.ElementTree as ET
+
+    urdf_limits = {}
+    urdf_mimics = {}
+    for joint in ET.parse(URDF_PATH).getroot().findall("joint"):
+        name = joint.get("name")
+        lim = joint.find("limit")
+        if lim is not None and lim.get("lower") is not None and lim.get("upper") is not None:
+            urdf_limits[name] = (float(lim.get("lower")), float(lim.get("upper")))  # pyright: ignore[reportArgumentType]
+        mimic = joint.find("mimic")
+        if mimic is not None:
+            urdf_mimics[name] = mimic.get("joint")
+
+    # Work on the flattened stage: a single layer, so post-import repairs
+    # author correctly (the importer writes a layer-stack where editing the
+    # composed stage targets the wrong layer). Flatten to a temp FILE first,
+    # then reopen it file-backed — anonymous layers have bitten us before.
     stage = Usd.Stage.Open(tmp_usd)
     if stage is None:
         raise RuntimeError(f"Failed to open imported stage: {tmp_usd}")
+    tmp_flat = os.path.join(tmp_dir, "flattened.usd")
+    if not stage.Flatten().Export(tmp_flat):
+        raise RuntimeError(f"Flatten export failed: {tmp_flat}")
+    flat_stage = Usd.Stage.Open(tmp_flat)
+
+    # 1) Restore URDF joint limits on revolute joints (the importer does not
+    #    author them; PhysX requires finite limits on mimic joints).
+    import math
+
+    limits_restored = 0
+    joint_paths = {}
+    for prim in flat_stage.Traverse():
+        if prim.GetTypeName().endswith("Joint"):
+            joint_paths[prim.GetName()] = prim.GetPath()
+        rj = UsdPhysics.RevoluteJoint(prim)
+        if not rj or prim.GetName() not in urdf_limits:
+            continue
+        lo, hi = urdf_limits[prim.GetName()]
+        # USD revolute-joint limits are in degrees; URDF uses radians.
+        rj.GetLowerLimitAttr().Set(math.degrees(lo))
+        rj.GetUpperLimitAttr().Set(math.degrees(hi))
+        limits_restored += 1
+
+    # 2) Repair empty PhysxMimicJointAPI referenceJoint relationships.
+    mimics_repaired = []
+    for prim in flat_stage.Traverse():
+        for schema in prim.GetAppliedSchemas():
+            if "PhysxMimicJointAPI" not in schema:
+                continue
+            inst = schema.split(":", 1)[1] if ":" in schema else ""
+            rel_name = f"physxMimicJoint:{inst}:referenceJoint"
+            rel = prim.GetRelationship(rel_name)
+            if rel is None:
+                rel = prim.CreateRelationship(rel_name)
+            if rel.GetTargets():
+                continue
+            ref_name = urdf_mimics.get(prim.GetName())
+            if ref_name and ref_name in joint_paths:
+                rel.SetTargets([Sdf.Path(joint_paths[ref_name])])
+                mimics_repaired.append(f"{prim.GetName()} -> {ref_name}")
+
+    report = [f"Limits restored on {limits_restored} revolute joints", f"Mimic refs repaired: {mimics_repaired}"]
+    with open("/tmp/opencode/convert_repairs.txt", "w") as f:
+        f.write("\n".join(report) + "\n")
+
     # IsaacLab references the asset as <defaultPrim>; without it the reference
     # resolves to nothing ("Unresolved reference prim path").
-    if not stage.HasDefaultPrim():
-        root_children = list(stage.GetPseudoRoot().GetAllChildren())
-        asset_root = [p for p in root_children if str(p.GetPath()) != "/World"]
+    if not flat_stage.HasDefaultPrim():
+        root_children = list(flat_stage.GetPseudoRoot().GetAllChildren())
+        asset_root = [p for p in root_children if not str(p.GetPath()).startswith("/Flattened_Prototype")]
         if len(asset_root) == 1:
-            stage.SetDefaultPrim(asset_root[0])
+            flat_stage.SetDefaultPrim(asset_root[0])
             print(f"Set default prim: {asset_root[0].GetPath()}")
         else:
-            raise RuntimeError(f"Expected exactly one root prim, got: {[str(p.GetPath()) for p in root_children]}")
-    stage.Flatten().Export(USD_PATH)
-    print(f"Flattened USD: {USD_PATH} ({os.path.getsize(USD_PATH)} bytes)")
+            raise RuntimeError(f"Expected exactly one asset root, got: {[str(p.GetPath()) for p in root_children]}")
+    if not flat_stage.GetRootLayer().Export(USD_PATH):
+        raise RuntimeError(f"Final export failed: {USD_PATH}")
+
+    # Read back the exported file and verify the repairs actually landed.
+    check_stage = Usd.Stage.Open(USD_PATH)
+    boom2 = check_stage.GetPrimAtPath("/new_mate_connectors_assem/joints/rev_boom2")
+    rj2 = UsdPhysics.RevoluteJoint(boom2)
+    rel2 = boom2.GetRelationship("physxMimicJoint:rotZ:referenceJoint")
+    report.append(
+        "VERIFY rev_boom2: limits=({},{}) mimic_ref={}".format(
+            rj2.GetLowerLimitAttr().Get(), rj2.GetUpperLimitAttr().Get(), [str(t) for t in rel2.GetTargets()] if rel2 else None
+        )
+    )
+    report.append(f"Flattened USD: {USD_PATH} ({os.path.getsize(USD_PATH)} bytes)")
+    with open("/tmp/opencode/convert_repairs.txt", "w") as f:
+        f.write("\n".join(report) + "\n")
 
     simulation_app.close()
     return 0
