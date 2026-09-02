@@ -1,90 +1,117 @@
 #!/usr/bin/env python3
 """Convert the cleaned MATE connectors URDF to a USD asset for IsaacLab.
 
-Runs inside Isaac Sim's Python (``python.sh``) and uses the official
-``isaacsim.asset.importer.urdf`` extension. The importer natively supports
-``<mimic>`` joints (see the extension's ``test_mimic.urdf``), so the
-four-bar linkages stay coherent under PhysX.
+Runs inside Isaac Sim's Python (``isaaclab.sh -p``) and uses the
+``isaacsim.asset.importer.urdf`` extension (Isaac Sim 5.1 API:
+``_urdf.ImportConfig`` + ``URDFParseAndImportFile`` kit command).
 
-Usage (from the Isaac Sim install root):
-    ./python.sh /path/to/ros2_ws/src/mate_connectors_assem/isaac/convert_urdf_to_usd.py
+The URDF references meshes as ``package://mate_connectors_assem/meshes/*.stl``.
+The 5.1 importer resolves ``package://`` URIs through the ``ROS_PACKAGE_PATH``
+environment variable, so we create a temp "ROS workspace" containing a
+``mate_connectors_assem`` symlink to this package dir.
+
+Usage (from the repo root, inside the container):
+    /IsaacLab/isaaclab.sh -p source/MeArmRL/MeArmRL/robot_description/mate_connectors/isaac/convert_urdf_to_usd.py
 
 Output:
-    <package>/isaac/assets/mate_connectors.usd
+    <package>/isaac/assets/mate_connectors.usd  (flattened, self-contained)
 """
-from __future__ import annotations
-
+import argparse
 import os
 import sys
+import tempfile
+
+from isaaclab.app import AppLauncher
+
+parser = argparse.ArgumentParser(description="Convert MATE connectors URDF to USD (Isaac Sim 5.1 API).")
+AppLauncher.add_app_launcher_args(parser)
+args = parser.parse_args()
+
+app_launcher = AppLauncher(args)
+simulation_app = app_launcher.app
+
+import omni.kit.app
+import omni.kit.commands
+
+ext_manager = omni.kit.app.get_app().get_extension_manager()
+ext_manager.set_extension_enabled_immediate("isaacsim.asset.importer.urdf", True)
+
+from isaacsim.asset.importer.urdf import _urdf  # noqa: E402
 
 # ---------------------------------------------------------------------------
-# Paths (edit these if your workspace lives elsewhere).
+# Paths.
 # ---------------------------------------------------------------------------
 PKG_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 URDF_PATH = os.path.join(PKG_DIR, "urdf", "mate_connectors_clean.urdf")
 USD_DIR = os.path.join(PKG_DIR, "isaac", "assets")
 USD_PATH = os.path.join(USD_DIR, "mate_connectors.usd")
 
-# ROS package name that owns the meshes (used to resolve package:// URLs).
 ROS_PACKAGE_NAME = "mate_connectors_assem"
 
 
-def main() -> None:
-    # Omniverse/Isaac Sim imports must happen AFTER SimulationApp is created.
-    from isaacsim import SimulationApp
-
-    simulation_app = SimulationApp({"headless": True})
-
-    from isaacsim.asset.importer.urdf import URDFImporter, URDFImporterConfig
-
+def main() -> int:
     os.makedirs(USD_DIR, exist_ok=True)
 
-    # The importer writes a layer-stack directory; we import into a temp dir
-    # and then flatten the composed stage into a single self-contained USD.
-    import tempfile
+    # The importer looks up package://<name>/... via ROS_PACKAGE_PATH, i.e. it
+    # expects a directory <entry>/<name>/ containing the meshes. Create a temp
+    # workspace with a symlink named after the ROS package.
+    ros_ws = tempfile.mkdtemp(prefix="mate_ros_ws_")
+    os.symlink(PKG_DIR, os.path.join(ros_ws, ROS_PACKAGE_NAME))
+    os.environ["ROS_PACKAGE_PATH"] = ros_ws
+    print(f"ROS_PACKAGE_PATH={ros_ws} ({ROS_PACKAGE_NAME} -> {PKG_DIR})")
 
+    config = _urdf.ImportConfig()
+    # Keep fixed joints as separate PhysicsFixedJoint prims. Merging collapses
+    # the base chain into the root Xform and breaks the articulation.
+    config.set_merge_fixed_joints(False)
+    # The arm is table-mounted; fix the base link to the world.
+    config.set_fix_base(True)
+    # The URDF has no <collision> tags; generate collision from visuals.
+    config.set_collision_from_visuals(True)
+    # Convex decomposition keeps the STL collision meshes PhysX-friendly.
+    config.set_convex_decomp(True)
+    config.set_self_collision(False)
+    # URDF <mimic> tags -> PhysxMimicJointAPI (four-bar linkages).
+    config.set_parse_mimic(True)
+    # Regularize link density so tiny Onshape masses don't destabilize sim.
+    config.set_density(1000.0)
+    # Import inertia tensors from the URDF.
+    config.set_import_inertia_tensor(True)
+    # Position-drive defaults (IsaacLab's ImplicitActuatorCfg overrides gains).
+    config.set_default_drive_type(_urdf.UrdfJointTargetType.JOINT_DRIVE_POSITION)
+
+    # Import into a temp dir first, then flatten into the committed asset.
     tmp_dir = tempfile.mkdtemp(prefix="mate_urdf_")
     tmp_usd = os.path.join(tmp_dir, "mate_connectors.usd")
 
-    config = URDFImporterConfig()
-    config.urdf_path = URDF_PATH
-    config.usd_path = tmp_usd
-
-    # Keep fixed joints as separate PhysicsFixedJoint prims (matches the
-    # documented URDF importer example). Merging them collapses the base
-    # chain into the root Xform, which breaks the articulation.
-    config.merge_fixed_joints = False
-    # The arm is table-mounted; fix the base link to the world.
-    config.fix_base = True
-    # Only the 4 actuated joints get drives; mimics are locked by PhysX.
-    config.make_default_joints_drive = False
-    # The URDF has no <collision> tags; generate them from the visuals.
-    config.collision_from_visuals = True
-    # Convex decomposition keeps the STL collision meshes PhysX-friendly.
-    config.collision_type = "convexDecomposition"
-    config.allow_self_collision = False
-    # Resolve package://mate_connectors_assem/meshes/*.stl.
-    config.ros_package_paths = [{"package": ROS_PACKAGE_NAME, "path": PKG_DIR}]
-    # Regularize link density so tiny Onshape masses don't destabilize sim.
-    config.link_density = 1000.0
-    # Joint drive type: implicit (PD) drives, matching the IsaacLab config.
-    config.joint_drive_type = "implicit"
-    config.joint_target_type = "position"
-
-    importer = URDFImporter(config)
-    result = importer.import_urdf()
+    result = omni.kit.commands.execute(
+        "URDFParseAndImportFile",
+        urdf_path=URDF_PATH,
+        import_config=config,
+        dest_path=tmp_usd,
+    )
     print(f"Imported USD: {result}")
 
-    # Flatten the composed stage into a single file for IsaacLab.
     from pxr import Usd
 
-    stage = Usd.Stage.Open(result)
+    stage = Usd.Stage.Open(tmp_usd)
     if stage is None:
-        raise RuntimeError(f"Failed to open imported stage: {result}")
+        raise RuntimeError(f"Failed to open imported stage: {tmp_usd}")
+    # IsaacLab references the asset as <defaultPrim>; without it the reference
+    # resolves to nothing ("Unresolved reference prim path").
+    if not stage.HasDefaultPrim():
+        root_children = list(stage.GetPseudoRoot().GetAllChildren())
+        asset_root = [p for p in root_children if str(p.GetPath()) != "/World"]
+        if len(asset_root) == 1:
+            stage.SetDefaultPrim(asset_root[0])
+            print(f"Set default prim: {asset_root[0].GetPath()}")
+        else:
+            raise RuntimeError(f"Expected exactly one root prim, got: {[str(p.GetPath()) for p in root_children]}")
     stage.Flatten().Export(USD_PATH)
-    print(f"Flattened USD: {USD_PATH}")
+    print(f"Flattened USD: {USD_PATH} ({os.path.getsize(USD_PATH)} bytes)")
 
     simulation_app.close()
+    return 0
 
 
 if __name__ == "__main__":
