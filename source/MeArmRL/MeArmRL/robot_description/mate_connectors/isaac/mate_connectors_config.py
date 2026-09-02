@@ -72,16 +72,19 @@ class MateConnectorsCfg(ArticulationCfg):
     # -- Actuators -------------------------------------------------------------
     # Implicit (PD) drives on the 4 actuated joints. The mimic joints are
     # locked by PhysX and need no drive.
+    # NOTE: gains are ~50x the datasheet-ish values because the PhysX implicit
+    # drive behaves ~2500x weaker than configured on these gram-scale links
+    # (measured steady-state droop); retune with the Gain Tuner extension.
     actuators = {
         "arm": ImplicitActuatorCfg(
             joint_names_expr=ACTUATED_JOINT_NAMES,
-            effort_limit=_JOINT_EFFORT,
+            effort_limit=100.0,
             velocity_limit=_JOINT_VELOCITY,
             stiffness={
-                name: 100.0 for name in ACTUATED_JOINT_NAMES
+                name: 5000.0 for name in ACTUATED_JOINT_NAMES
             },
             damping={
-                name: 10.0 for name in ACTUATED_JOINT_NAMES
+                name: 200.0 for name in ACTUATED_JOINT_NAMES
             },
         ),
     }
@@ -98,8 +101,10 @@ class MateConnectorsCfg(ArticulationCfg):
         ),
         articulation_props=sim_utils.ArticulationRootPropertiesCfg(
             enabled_self_collisions=False,
-            solver_position_iteration_count=8,
-            solver_velocity_iteration_count=0,
+            # Gram-scale links need many solver iterations; the defaults (8/0)
+            # leave the drives effectively unable to hold pose against gravity.
+            solver_position_iteration_count=64,
+            solver_velocity_iteration_count=4,
         ),
     )
 
