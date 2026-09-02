@@ -102,7 +102,7 @@ def main():
             UsdPhysics.RevoluteJoint(p).GetUpperLimitAttr().Get(),
         ) if type_name in ("PhysicsRevoluteJoint", "PhysicsPrismaticJoint") else None
         flag = "OK " if (body0 and body1) else "BAD"
-        print(f"  [{flag}] {p.GetPath()}  (type={p.GetTypeName()})")
+        print(f"  [{flag}] {p.Ge~~tPath()}  (type={p.GetTypeName()})")
         print(f"        body0={body0 or '<MISSING>'}")
         print(f"        body1={body1 or '<MISSING>'}")
         if p.GetTypeName() == "PhysicsRevoluteJoint":
