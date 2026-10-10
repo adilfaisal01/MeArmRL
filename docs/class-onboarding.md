@@ -112,15 +112,21 @@ a real gap?), not by scanning for `TODO` markers.
    checks on the reward functions (reward-term wiring, plus advisory warnings for
    per-step footguns like `.item()` or Python loops). The full in-container check
    is unchanged.
-3. **Ignored venv.** `.venv-lab/` is gitignored.
+3. **An OS-aware `doctor` script.** `python scripts/doctor.py` detects the platform
+   (Linux / WSL2 / macOS / Windows), then checks the NVIDIA driver, Docker CLI and
+   daemon, the NVIDIA container runtime, the built image, free disk space, NGC
+   auth, and the CPU harness -- printing the exact fix command for whatever is
+   missing. On macOS it exits `2` with cloud/CPU guidance, because the GPU path is
+   impossible there. `--json` makes it easy to survey a whole class; `--gpu-smoke`
+   additionally runs `nvidia-smi` inside the built image.
+4. **Ignored venv.** `.venv-lab/` is gitignored.
 
 ### Still recommended (not done)
 
 * **`network_mode: host` in `docker/docker-compose.yaml` is Linux-only** and makes
   `docker compose up` fail on Docker Desktop (macOS *and* Windows). It is not
-  needed for headless training; move it behind an override file.
-* **An OS-aware `doctor` script** that checks driver / toolkit / GPU visibility /
-  NGC auth and prints the exact next command, refusing clearly on macOS.
+  needed for headless training; move it behind an override file. (`doctor.py` warns
+  about this, but the compose file itself is unchanged.)
 
 ## 5. Tier 3 — where the outer loop lives (decision)
 
@@ -142,9 +148,10 @@ be cleared first. Option A stays entirely license-clean.
 ## 6. Verification
 
 ```bash
-bash -n scripts/lab_setup.sh scripts/check_week01.py   # static shell checks (sh only)
+python scripts/doctor.py                               # platform preflight (see exit codes above)
 python -m pytest labs/week01_intro_isaaclab/harness -q  # 8 passed, 6 skipped on a clean tree
 python scripts/check_week01.py --static                # static lab checks
+bash -n scripts/lab_setup.sh                           # shell syntax
 ```
 
 On a clean checkout the harness reports `8 passed, 6 skipped` (the 5 student tests
@@ -163,6 +170,6 @@ until the student starts work — expected.
    students and defeats comment-based tooling. Either make the blanks genuinely
    empty, or relabel them "verify you understand why this is right". Not changed
    here because it alters the assignment itself.
-4. **Add a `network_mode: host` override** (see §4) and the `doctor` script.
+4. **Add a `network_mode: host` override** (see §4); `doctor.py` only warns about it.
 5. **Optional tiny CPU devcontainer** for a fully reproducible inner loop,
    deliberately separate from the GPU image.

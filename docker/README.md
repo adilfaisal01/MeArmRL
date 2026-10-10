@@ -23,6 +23,15 @@ Container layout:
 
 ## Prerequisites (one-time)
 
+Not sure what is missing? Run the preflight from the repo root -- it detects your
+OS and prints the exact fix for anything that is not ready:
+
+```bash
+python scripts/doctor.py
+```
+
+Then, once it is green:
+
 - Docker with the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html).
 - A free [NGC account](https://ngc.nvidia.com/) and API key, then:
 
