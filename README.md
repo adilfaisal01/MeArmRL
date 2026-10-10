@@ -19,7 +19,7 @@ Windows, or macOS. The container below is only needed to *train*.
 
 ```bash
 python scripts/doctor.py                 # what does this machine support?
-bash scripts/lab_setup.sh                # CPU env + reward harness (lab_setup.ps1 on Windows)
+bash scripts/lab_setup.sh                # CPU env + reward harness (lab_setup.cmd on Windows)
 python scripts/check_week01.py --static  # config/reward wiring, no simulator
 ```
 

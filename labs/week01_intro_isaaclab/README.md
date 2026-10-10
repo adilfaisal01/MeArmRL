@@ -17,6 +17,7 @@ no GPU. Set up a CPU-only environment and try the reward playground:
 
 ```bash
 bash scripts/lab_setup.sh                              # Linux / macOS / Git-Bash
+# Windows:  scripts\lab_setup.cmd
 python labs/week01_intro_isaaclab/harness/playground.py
 python -m pytest labs/week01_intro_isaaclab/harness -q
 ```

@@ -105,6 +105,15 @@ def check_platform(p: dict) -> list[Check]:
     return [Check("platform", OK, f"Platform: {detail}")]
 
 
+def _python_install_hint() -> str:
+    """An OS-appropriate command for installing Python, for the too-old case."""
+    hints = {
+        "darwin": "brew install python@3.12   (or https://www.python.org/downloads/macos/)",
+        "windows": "winget install Python.Python.3.12   (or python.org; tick 'Add python.exe to PATH')",
+    }
+    return hints.get(platform.system().lower(), "sudo apt install python3 python3-venv   (Debian/Ubuntu)")
+
+
 def check_python() -> list[Check]:
     v = platform.python_version()
     # Doctor runs *before* setup, so it must work on an older interpreter in order to
@@ -116,7 +125,7 @@ def check_python() -> list[Check]:
                 FAIL,
                 f"Python: {v}",
                 "The lab harness needs Python 3.10+.",
-                ["Install Python 3.10 or newer and re-run this script."],
+                [_python_install_hint(), "Then re-run: python scripts/doctor.py"],
             )
         ]
     return [Check("python", OK, f"Python: {v}")]

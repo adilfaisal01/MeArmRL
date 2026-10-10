@@ -54,7 +54,7 @@ jobs:
           else
             python -m pip install torch
           fi
-          python -m pip install pyyaml pytest
+          python -m pip install numpy pyyaml pytest
 
       - name: Reward harness (CPU, no Isaac Sim)
         run: python -m pytest labs/week01_intro_isaaclab/harness -q
@@ -89,3 +89,34 @@ jobs:
           python scripts/doctor.py --json > doctor.json || true
           python -m json.tool doctor.json > /dev/null
           echo "doctor json ok"
+
+  # Proves the documented Windows entry point on a *fresh* machine. Windows sets
+  # PowerShell's ExecutionPolicy to "Restricted" by default, which blocks .ps1
+  # files ("running scripts is disabled"); scripts\lab_setup.cmd exists to work
+  # around exactly that, so this job restores the default and runs it.
+  windows-onboarding:
+    name: windows onboarding (lab_setup.cmd)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Make PowerShell refuse .ps1 files (simulate a fresh machine)
+        shell: powershell
+        run: |
+          Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy Restricted -Force
+          Get-ExecutionPolicy
+
+      - name: Run the documented Windows entry point
+        shell: cmd
+        run: |
+          call scripts\lab_setup.cmd > lab_setup_out.txt 2>&1
+          type lab_setup_out.txt
+          findstr /C:"passed" lab_setup_out.txt >nul || (echo ::error::harness did not report a passing run & exit /b 1)
+          if not exist ".venv-lab\Scripts\python.exe" (echo ::error::lab_setup.cmd did not create .venv-lab & exit /b 1)
+          echo onboarding ok

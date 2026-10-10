@@ -2,5 +2,6 @@
 # Install with `bash scripts/lab_setup.sh`, or:
 #   python -m pip install -r labs/week01_intro_isaaclab/harness/requirements.txt
 torch
+numpy
 pyyaml
 pytest

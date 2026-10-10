@@ -16,7 +16,8 @@ bash scripts/lab_setup.sh          # Linux / macOS / Git-Bash
 ```
 
 ```powershell
-scripts\lab_setup.ps1              # Windows PowerShell
+scripts\lab_setup.cmd              # Windows (recommended; avoids ExecutionPolicy)
+# or:  powershell -ExecutionPolicy Bypass -File scripts\lab_setup.ps1
 ```
 
 Either one creates a local `.venv-lab`, installs the CPU dependencies, runs the

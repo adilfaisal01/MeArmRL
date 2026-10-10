@@ -42,7 +42,7 @@ case "$(uname -s)" in
         python -m pip install torch
         ;;
 esac
-python -m pip install pyyaml pytest
+python -m pip install numpy pyyaml pytest
 
 echo "=== [3/3] Running lab checks ==="
 set +e

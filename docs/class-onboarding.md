@@ -59,7 +59,7 @@ bash scripts/lab_setup.sh          # Linux / macOS / Git-Bash: venv + deps + che
 ```
 
 ```powershell
-scripts\lab_setup.ps1              # Windows PowerShell
+scripts\lab_setup.cmd              # Windows (batch wrapper avoids ExecutionPolicy)
 ```
 
 ```bash
@@ -128,6 +128,13 @@ a real gap?), not by scanning for `TODO` markers.
    126-column copyright header (which must stay verbatim) and the repo's ~120-column
    style pass; `document-start` is disabled to match existing files.
 6. **Ignored venv.** `.venv-lab/` is gitignored.
+7. **Windows entry point.** `scripts\lab_setup.cmd` runs the setup via PowerShell
+   with `-ExecutionPolicy Bypass` -- a fresh Windows machine blocks `.ps1` files
+   ("running scripts is disabled"), and the `.ps1` previously also called
+   `Activate.ps1`, which is policy-blocked too. It now calls the venv interpreter
+   directly and prefers the `py -3` launcher. `doctor.py` prints an OS-specific
+   Python install command when the interpreter is too old, and the CPU harness
+   installs `numpy` (torch warned about its absence).
 
 ## 5. Tier 3 — decided: per-student build + university HPC cluster
 
