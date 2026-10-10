@@ -135,6 +135,10 @@ a real gap?), not by scanning for `TODO` markers.
    directly and prefers the `py -3` launcher. `doctor.py` prints an OS-specific
    Python install command when the interpreter is too old, and the CPU harness
    installs `numpy` (torch warned about its absence).
+8. **Guided GPU bootstrap.** `scripts/bootstrap_gpu.py` runs the doctor's checks,
+   the NGC login, `docker build`, and a GPU smoke test in one command -- refusing
+   clearly on macOS, and stopping before a 20-minute build if the driver, the
+   container toolkit, or disk space is not ready.
 
 ## 5. Tier 3 — decided: per-student build + university HPC cluster
 

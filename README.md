@@ -33,6 +33,10 @@ end-effector (`effector_claw_right`) to a randomly sampled pose. The arm USD
 (`source/MeArmRL/MeArmRL/robot_description/mate_connectors/isaac/assets/mate_connectors.usd`)
 is committed and verified; no conversion step is needed to train.
 
+> **First time on this machine?** `python scripts/bootstrap_gpu.py` checks your
+> GPU/Docker setup, logs in to NGC, builds the image, and smoke-tests it -- one
+> command. See `docker/README.md`.
+
 All commands below are prefixed with `/IsaacLab/isaaclab.sh -p` and **only
 exist inside the container** — they are not host paths. Run them either via a
 one-liner from the `docker/` directory:

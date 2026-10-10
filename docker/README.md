@@ -5,10 +5,13 @@
 
 # MeArmRL container image (Docker + Compose + Singularity/Apptainer).
 
-> **macOS / Windows / no-GPU?** Run `python scripts/doctor.py` from the repo root
-> first -- it detects your OS and prints exactly what is missing. The GPU-free
-> half of the lab (reward math, config checks) runs on any laptop; see
-> `labs/week01_intro_isaaclab/harness/README.md` and `docs/class-onboarding.md`.
+> **Just want it working?** From the repo root:
+> - **GPU path:** `python scripts/bootstrap_gpu.py` -- checks your machine, logs in
+>   to NGC, builds this image, and smoke-tests the GPU. One command.
+> - **No GPU / macOS:** `bash scripts/lab_setup.sh` (`scripts\lab_setup.cmd` on
+>   Windows) -- the CPU half of the lab runs on any laptop.
+> - **Unsure:** `python scripts/doctor.py` explains what this machine can do.
+> See `docs/class-onboarding.md` and `labs/week01_intro_isaaclab/harness/README.md`.
 
 The image is **built locally by whoever needs it** — there is no shared
 registry and no maintainer push step. It contains Isaac Sim 5.1.0, Isaac Lab
@@ -27,6 +30,10 @@ Container layout:
 | `/MeArmRL` | this repo: extension, scripts, entrypoint |
 
 ## Prerequisites (one-time)
+
+`python scripts/bootstrap_gpu.py` does everything below for you (check, login,
+build, smoke test) and stops with a plain-English reason if this machine cannot
+do the GPU path. Or do it by hand:
 
 Not sure what is missing? Run the preflight from the repo root -- it detects your
 OS and prints the exact fix for anything that is not ready:

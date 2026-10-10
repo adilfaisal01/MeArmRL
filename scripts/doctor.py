@@ -43,7 +43,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 IMAGE = os.environ.get("MEARMRL_IMAGE", "mearmrl:local")
 
 OK, WARN, FAIL, SKIP = "ok", "warn", "fail", "skip"
-_SYMBOL = {OK: "[ OK ]", WARN: "[WARN]", FAIL: "[FAIL]", SKIP: "[SKIP]"}
+SYMBOL = {OK: "[ OK ]", WARN: "[WARN]", FAIL: "[FAIL]", SKIP: "[SKIP]"}
 
 
 class Check:
@@ -365,27 +365,27 @@ def compute_verdict(p: dict, checks: list[Check]) -> dict:
             ],
         }
 
-    if p["group"] == "windows":
-        return {
-            "code": 1,
-            "headline": "Windows cannot pass an NVIDIA GPU to a Linux container directly.",
-            "next": [
-                "Install WSL2 + the Windows NVIDIA driver, then run Docker inside WSL2:",
-                "  wsl --install",
-                "  (then re-run this script from inside WSL)",
-                "Meanwhile the CPU harness works natively: bash scripts/lab_setup.sh",
-            ],
-        }
-
     blockers = [c for c in checks if c.status == FAIL]
     if not blockers:
         return {
             "code": 0,
             "headline": "Ready for the GPU training path.",
             "next": [
-                "docker login nvcr.io   # once, if you have not already",
-                "docker build -t mearmrl:local -f docker/Dockerfile .",
+                "Shortcut: python scripts/bootstrap_gpu.py   # logs in, builds, smoke-tests",
+                "  (or by hand: docker login nvcr.io; docker build -t mearmrl:local -f docker/Dockerfile .)",
                 "cd docker && docker compose up",
+            ],
+        }
+
+    if p["group"] == "windows":
+        return {
+            "code": 1,
+            "headline": "Windows needs Docker Desktop's WSL2 backend to pass the GPU to a container.",
+            "next": [
+                "Enable WSL2 and the Windows NVIDIA driver, then run Docker Desktop on",
+                "its WSL2 backend and re-run this script:",
+                "  wsl --install",
+                "Meanwhile the CPU harness works natively: scripts\\lab_setup.cmd",
             ],
         }
     return {
@@ -438,7 +438,7 @@ def main(argv: list[str] | None = None) -> int:
 
     print("MeArmRL doctor -- can this machine run the lab?\n")
     for check in checks:
-        print(f"  {_SYMBOL[check.status]} {check.title}")
+        print(f"  {SYMBOL[check.status]} {check.title}")
         if check.detail:
             print(f"         {check.detail}")
         for line in check.fix:
