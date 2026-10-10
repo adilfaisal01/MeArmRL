@@ -95,6 +95,8 @@ RUN /IsaacLab/isaaclab.sh -p -m pip install --no-cache-dir -e /IsaacLab/source/i
 # ---------------------------------------------------------------------------
 # `isaaclab.sh -p` resolves to the Isaac Sim Python. Always use it (never bare
 # `pip`, which would target the apt Python).
+# pyyaml + pytest let scripts/test_container.sh run the CPU reward harness inside
+# the image, including the math_compat <-> isaaclab.utils.math parity check.
 RUN /IsaacLab/isaaclab.sh -p -m pip install --no-cache-dir \
         "skrl>=2.0.0" \
         "gymnasium" \
@@ -102,7 +104,9 @@ RUN /IsaacLab/isaaclab.sh -p -m pip install --no-cache-dir \
         "omegaconf" \
         "packaging" \
         "psutil" \
-        "toml"
+        "toml" \
+        "pyyaml" \
+        "pytest"
 
 # ---------------------------------------------------------------------------
 # MeArmRL extension (editable install so the bind-mounted source wins at runtime)

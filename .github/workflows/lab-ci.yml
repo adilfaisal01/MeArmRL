@@ -1,0 +1,91 @@
+---
+# GPU-free lab CI.
+#
+# Guards the half of the lab that needs no GPU: the CPU reward harness and the
+# static tooling, on every OS a student might use. The GPU/container path is
+# exercised separately by scripts/test_container.sh on a GPU machine.
+#
+# The runner has no GPU, so scripts/doctor.py legitimately exits non-zero (its
+# "fixable problem" code); the step only asserts it runs and emits JSON.
+
+name: lab (GPU-free)
+
+permissions:
+  contents: read
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  gpu-free:
+    name: ${{ matrix.os }} / py${{ matrix.python-version }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            python-version: "3.10"
+          - os: ubuntu-latest
+            python-version: "3.12"
+          - os: macos-latest
+            python-version: "3.12"
+          - os: windows-latest
+            python-version: "3.12"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install CPU dependencies
+        shell: bash
+        run: |
+          python -m pip install --upgrade pip
+          if [ "$RUNNER_OS" = "Linux" ]; then
+            python -m pip install torch \
+              --index-url https://download.pytorch.org/whl/cpu
+          else
+            python -m pip install torch
+          fi
+          python -m pip install pyyaml pytest
+
+      - name: Reward harness (CPU, no Isaac Sim)
+        run: python -m pytest labs/week01_intro_isaaclab/harness -q
+
+      - name: Static checker rejects an untouched tree
+        shell: bash
+        run: |
+          set +e
+          python scripts/check_week01.py --static \
+            --base-branch HEAD > checker_clean.txt 2>&1
+          rc=$?
+          set -e
+          cat checker_clean.txt
+          if [ "$rc" -eq 0 ]; then
+            echo "::error::expected non-zero exit on a clean tree"
+            exit 1
+          fi
+          grep -q "none of the student files were modified" \
+            checker_clean.txt
+
+      - name: Static checker accepts a valid student edit
+        shell: bash
+        run: |
+          cd source/MeArmRL/MeArmRL/tasks/manager_based/mearmrl
+          printf '\n# ci smoke edit\n' >> reach_student_cfg.py
+          cd "$GITHUB_WORKSPACE"
+          python scripts/check_week01.py --static --base-branch HEAD
+
+      - name: Doctor runs and emits valid JSON
+        shell: bash
+        run: |
+          python scripts/doctor.py --json > doctor.json || true
+          python -m json.tool doctor.json > /dev/null
+          echo "doctor json ok"

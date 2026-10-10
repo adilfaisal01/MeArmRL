@@ -14,6 +14,19 @@ Isaac Lab 2.3.2 extension template for a MeArm robot arm, on Isaac Sim 5.1.0. Th
 - Container layout: `/isaac-sim` (Isaac Sim runtime), `/IsaacLab` (Isaac Lab clone), `/MeArmRL` (this repo). The workspace root inside the container is `/MeArmRL`, not the old `/workspace/isaaclab`.
 - Install in editable mode: `/IsaacLab/isaaclab.sh -p -m pip install -e source/MeArmRL`.
 
+## GPU-free lab path (no Isaac Sim)
+
+Half the Week-1 lab is pure tensor math and runs without a GPU. Do **not** add
+`isaaclab` imports to `mdp/rewards.py` outside the existing `try/except` -- it must
+keep importing with only `torch`. The CPU fallbacks live in `mdp/math_compat.py` and
+are pinned to Isaac Lab by `labs/week01_intro_isaaclab/harness/test_math_parity.py`.
+
+- `labs/week01_intro_isaaclab/harness/` -- fake env + pytest harness; `bash scripts/lab_setup.sh` builds a CPU venv.
+- `scripts/check_week01.py --static` -- git allowlist + skrl YAML + AST checks, no simulator (full mode unchanged).
+- `scripts/doctor.py` -- OS-aware preflight (driver/Docker/toolkit/NGC/disk); exits 0 ready / 1 fixable / 2 impossible (macOS).
+- `docs/class-onboarding.md` -- the two-loop model, cross-OS matrix, and distribution options.
+- CI: `.github/workflows/lab-ci.yml` runs the harness + static tooling on Linux/macOS/Windows.
+
 ## Registered tasks
 
 `Template-Mearmrl-v0`, `Mearmrl-Reach-v0`, and `Mearmrl-Reach-Student-v0` are registered in `source/MeArmRL/MeArmRL/tasks/manager_based/mearmrl/__init__.py`. `Mearmrl-Reach-Student-v0` is the week-01 lab task: its cfg (`reach_student_cfg.py`) subclasses the reach env and only overrides `rewards`/`curriculum`, and it uses its own skrl config (`agents/skrl_ppo_student_cfg.yaml`) so PPO hyperparameter tuning can't affect the baseline; `scripts/check_week01.py` verifies nothing else drifted. `scripts/list_envs.py` hardcodes the `Template-` keyword filter — if you rename a task, update that filter.
@@ -27,7 +40,9 @@ Isaac Lab 2.3.2 extension template for a MeArm robot arm, on Isaac Sim 5.1.0. Th
 
 ## Container test pipeline
 
-`bash scripts/test_container.sh` (static `bash -n` checks + build + `list_envs`; no GPU needed). `--full` adds a zero-agent GPU smoke test; `--skip-build` reuses the existing image. There is **no `pytest` suite** and `tests/` is gitignored — don't look for one.
+`bash scripts/test_container.sh` runs 5 stages: `bash -n` static checks, image build, `list_envs`, the CPU reward harness in-container (with Isaac Lab math parity), and an optional zero-agent GPU smoke test (`--full`). `--skip-build` reuses the existing image. Stages 3+ need a GPU. The image installs `pytest`/`pyyaml` so stage 4 can run.
+
+Repo-wide `tests/` remains gitignored; the only pytest suite is the CPU harness under `labs/week01_intro_isaaclab/harness/`, which `lab-ci.yml` runs on Linux/macOS/Windows (the GPU path is not exercised by CI).
 
 ## SLURM / HPC
 
@@ -47,7 +62,7 @@ Three deployment paths (see `slurm/README.md` "Choosing a cluster backend"):
 
 ## Known broken hook
 
-The `insert-license` pre-commit hook references `.github/LICENSE_HEADER.txt`, but **`.github/` does not exist** in this repo (no `LICENSE` file is tracked either). `pre-commit run --all-files` will fail that hook until `.github/LICENSE_HEADER.txt` is added or the hook block is removed. The Apache-2.0 mimic hook (`source/isaaclab_mimic/...`) also targets paths that don't exist here.
+The `insert-license` pre-commit hook references `.github/LICENSE_HEADER.txt`, which **does not exist** (no `LICENSE` file is tracked either; `.github/` holds only `workflows/`). `pre-commit run --all-files` will fail that hook until `.github/LICENSE_HEADER.txt` is added or the hook block is removed. The Apache-2.0 mimic hook (`source/isaaclab_mimic/...`) also targets paths that don't exist here.
 
 ## Repo quirks
 

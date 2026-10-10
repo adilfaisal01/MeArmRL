@@ -5,23 +5,36 @@
 
 """Guard against drift between mdp/math_compat.py and the real Isaac Lab math.
 
-Runs only where Isaac Lab is importable (i.e. inside the container), so the CPU
-fallbacks used on a laptop are pinned to the authoritative implementations.
+On a laptop (no Isaac Lab) this skips: the CPU fallbacks are validated where the
+authoritative implementation exists. Inside the container, set
+``MEARMRL_REQUIRE_PARITY=1`` (``scripts/test_container.sh`` does) to turn a
+missing ImportError into a failure instead of a silent skip.
 """
 
+# isaaclab exists only inside the container; this module is built to skip (or, with
+# MEARMRL_REQUIRE_PARITY=1, fail) when it is absent, so its absence is not an error.
+# pyright: reportMissingImports=false
+
 from __future__ import annotations
+
+import os
 
 import pytest
 import torch
 
-pytest.importorskip("isaaclab.utils.math", reason="Isaac Lab not installed; parity is checked in-container")
+# In CI and on a laptop an absent Isaac Lab is expected; in the container it is required.
+_REQUIRE_PARITY = os.environ.get("MEARMRL_REQUIRE_PARITY") == "1"
+try:
+    from isaaclab.utils.math import combine_frame_transforms as ref_combine  # noqa: E402
+    from isaaclab.utils.math import quat_error_magnitude as ref_qem  # noqa: E402
+    from isaaclab.utils.math import quat_mul as ref_qmul  # noqa: E402
+    from isaaclab.utils.math import wrap_to_pi as ref_wrap  # noqa: E402
+except ImportError:
+    if _REQUIRE_PARITY:
+        raise
+    pytest.skip("Isaac Lab not installed; parity is checked in-container", allow_module_level=True)
 
 from labkit import load_mdp_module  # noqa: E402
-
-from isaaclab.utils.math import combine_frame_transforms as ref_combine  # noqa: E402
-from isaaclab.utils.math import quat_error_magnitude as ref_qem  # noqa: E402
-from isaaclab.utils.math import quat_mul as ref_qmul  # noqa: E402
-from isaaclab.utils.math import wrap_to_pi as ref_wrap  # noqa: E402
 
 compat = load_mdp_module("math_compat")
 

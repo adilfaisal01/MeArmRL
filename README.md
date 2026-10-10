@@ -12,6 +12,20 @@ It allows you to develop in an isolated environment, outside of the core Isaac L
 
 **Keywords:** extension, template, isaaclab
 
+## Start coding (no GPU required)
+
+Most of the Week-1 lab is pure tensor math and runs on any laptop -- Linux,
+Windows, or macOS. The container below is only needed to *train*.
+
+```bash
+python scripts/doctor.py                 # what does this machine support?
+bash scripts/lab_setup.sh                # CPU env + reward harness (lab_setup.ps1 on Windows)
+python scripts/check_week01.py --static  # config/reward wiring, no simulator
+```
+
+See `labs/week01_intro_isaaclab/harness/README.md` for the harness and
+`docs/class-onboarding.md` for the multi-OS / distribution design.
+
 ## Training the MATE connectors arm (e2e RL)
 
 The arm task is `Mearmrl-Reach-v0`: move the 4-DOF MATE connectors arm's

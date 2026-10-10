@@ -10,11 +10,12 @@
 #   1. Static checks (bash -n on all shell scripts)
 #   2. Build the MeArmRL image (pulls the nvcr.io base itself)
 #   3. Smoke test: list registered tasks inside the container
-#   4. (Optional) zero-agent run with a few envs to verify the env loads
+#   4. Reward harness in-container: CPU reward math + Isaac Lab math parity
+#   5. (Optional) zero-agent run with a few envs to verify the env loads
 #
-# NOTE: stage 3 launches the sim app and therefore needs an NVIDIA GPU/driver
-# too (Isaac Sim requires libcuda even headless). On a GPU-less machine only
-# stages 1-2 can pass.
+# NOTE: stage 3 launches the sim app and stage 4 imports Isaac Lab; both need an
+# NVIDIA GPU/driver (Isaac Sim requires libcuda even headless). On a GPU-less
+# machine only stages 1-2 can pass.
 #
 # Usage:
 #   bash scripts/test_container.sh            # static checks + build + list_envs
@@ -40,7 +41,7 @@ for arg in "$@"; do
     esac
 done
 
-echo "=== [1/4] Static checks ==="
+echo "=== [1/5] Static checks ==="
 for f in \
     docker/entrypoint.sh \
     docker/cluster/build_sif.sh \
@@ -49,12 +50,13 @@ for f in \
     slurm/train-multinode.sbatch \
     slurm/train-docker.sbatch \
     scripts/dev_local.sh \
+    scripts/lab_setup.sh \
     scripts/test_container.sh; do
     bash -n "${REPO_ROOT}/${f}"
     echo "  OK: ${f}"
 done
 
-echo "=== [2/4] Build the MeArmRL image ==="
+echo "=== [2/5] Build the MeArmRL image ==="
 if [ "${SKIP_BUILD}" -eq 1 ]; then
     echo "  Skipped (--skip-build)."
 else
@@ -62,7 +64,7 @@ else
     echo "  Built: ${IMAGE}"
 fi
 
-echo "=== [3/4] Smoke test: list registered tasks ==="
+echo "=== [3/5] Smoke test: list registered tasks ==="
 docker run --rm \
     -e ACCEPT_EULA=Y \
     -e PRIVACY_CONSENT=Y \
@@ -74,7 +76,23 @@ docker run --rm \
     "${IMAGE}" \
     /IsaacLab/isaaclab.sh -p scripts/list_envs.py --keyword "${TASK}" 2>&1 | tail -20
 
-echo "=== [4/4] Zero-agent smoke test ==="
+echo "=== [4/5] Reward harness in-container (CPU math + Isaac Lab parity) ==="
+# Runs the CPU harness against the real Isaac Lab. MEARMRL_REQUIRE_PARITY=1 makes a
+# missing isaaclab a failure rather than a skip, so math_compat drift is caught here.
+docker run --rm \
+    -e ACCEPT_EULA=Y \
+    -e PRIVACY_CONSENT=Y \
+    -e XDG_RUNTIME_DIR=/tmp/xdg \
+    -e OMNI_KIT_ALLOW_ROOT=1 \
+    -e ISAACLAB_PATH=/IsaacLab \
+    -e PYTHONPATH=/IsaacLab/source:/MeArmRL/source \
+    -e MEARMRL_REQUIRE_PARITY=1 \
+    -v "${REPO_ROOT}/labs:/MeArmRL/labs" \
+    -w /MeArmRL \
+    "${IMAGE}" \
+    /IsaacLab/isaaclab.sh -p -m pytest -q labs/week01_intro_isaaclab/harness 2>&1 | tail -20
+
+echo "=== [5/5] Zero-agent smoke test ==="
 if [ "${FULL}" -eq 1 ]; then
     docker run --rm --gpus all \
         -e ACCEPT_EULA=Y \
