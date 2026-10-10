@@ -9,6 +9,22 @@
 > are inherited from the base reach environment and are not yours to change.
 > `scripts/check_week01.py` verifies this before you submit.
 
+## No GPU yet? Start here
+
+Parts 1 and 3 are plain tensor math: you can read the baseline rewards and write
+`reach_progress_bonus` on **any** laptop, including macOS, with no container and
+no GPU. Set up a CPU-only environment and try the reward playground:
+
+```bash
+bash scripts/lab_setup.sh                              # Linux / macOS / Git-Bash
+python labs/week01_intro_isaaclab/harness/playground.py
+python -m pytest labs/week01_intro_isaaclab/harness -q
+```
+
+It loads the real reward code and shows you what each term does before you spend
+GPU time. The container is only needed for the training runs in Parts 2 and 4.
+See `labs/week01_intro_isaaclab/harness/README.md`.
+
 ## Learning goals
 
 By the end of this lab you can:
@@ -110,9 +126,15 @@ end-effector distance to the target since the previous step:
 3. **BLANK 3** — remember the current distance for the next step.
 
 Then register it by uncommenting the example `RewTerm` in `StudentRewardsCfg`
-(choose your own weight). Verify everything is wired up:
+(choose your own weight). Verify everything is wired up — first the fast CPU
+checks, then the container check:
 
 ```bash
+# on your laptop, seconds, no GPU:
+python -m pytest labs/week01_intro_isaaclab/harness -q   # your function, behaviourally
+python scripts/check_week01.py --static                 # wiring + config
+
+# in the container:
 /IsaacLab/isaaclab.sh -p scripts/check_week01.py --smoke
 ```
 

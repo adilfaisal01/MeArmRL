@@ -1,0 +1,6 @@
+# CPU-only dependencies for the Week-1 lab harness (no Isaac Sim, no GPU).
+# Install with `bash scripts/lab_setup.sh`, or:
+#   python -m pip install -r labs/week01_intro_isaaclab/harness/requirements.txt
+torch
+pyyaml
+pytest

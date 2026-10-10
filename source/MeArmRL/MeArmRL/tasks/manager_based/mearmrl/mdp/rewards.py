@@ -9,12 +9,21 @@ from typing import TYPE_CHECKING
 
 import torch
 
-from isaaclab.assets import Articulation, RigidObject
-from isaaclab.managers import SceneEntityCfg
-from isaaclab.utils.math import combine_frame_transforms, quat_error_magnitude, quat_mul, wrap_to_pi
+# These four helpers are the only Isaac Lab runtime dependency of this module. In the
+# container we use Isaac Lab's implementations (authoritative); on a plain CPU Python
+# (no GPU, no Isaac Sim) we fall back to numerically identical pure-torch copies so the
+# Week-1 lab reward math can be explored and unit-tested on any laptop. See math_compat.py.
+try:
+    from isaaclab.utils.math import combine_frame_transforms, quat_error_magnitude, quat_mul, wrap_to_pi
+except ModuleNotFoundError:  # Isaac Lab not importable -> CPU/dev path
+    from .math_compat import combine_frame_transforms, quat_error_magnitude, quat_mul, wrap_to_pi
 
 if TYPE_CHECKING:
+    # Imported for annotations only; `from __future__ import annotations` above keeps
+    # these out of the runtime import graph, so this module imports with just torch.
+    from isaaclab.assets import Articulation, RigidObject
     from isaaclab.envs import ManagerBasedRLEnv
+    from isaaclab.managers import SceneEntityCfg
 
 
 def joint_pos_target_l2(env: ManagerBasedRLEnv, target: float, asset_cfg: SceneEntityCfg) -> torch.Tensor:

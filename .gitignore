@@ -24,6 +24,8 @@
 **/.pytest_cache/
 **/*.pyc
 **/*.pb
+# CPU-only lab environment created by scripts/lab_setup.sh
+.venv-lab/
 
 # Docker/Singularity
 **/*.sif

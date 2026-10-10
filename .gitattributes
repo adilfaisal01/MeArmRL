@@ -12,3 +12,21 @@
 *.hdf5 filter=lfs diff=lfs merge=lfs -text
 
 *.bat text eol=crlf
+
+# Force LF for files consumed by Linux tooling (the container, bash, sbatch).
+# Without this, a Windows checkout (Git for Windows defaults to core.autocrlf=true)
+# converts entrypoint.sh / Dockerfile / *.sbatch to CRLF, and the container then
+# fails with a confusing "exec format error" / ": not found" instead of running.
+*.sh      text eol=lf
+*.ps1     text eol=lf
+*.sbatch  text eol=lf
+Dockerfile text eol=lf
+docker/** text eol=lf
+*.py      text eol=lf
+*.yaml    text eol=lf
+*.yml     text eol=lf
+*.toml    text eol=lf
+*.cfg     text eol=lf
+*.json    text eol=lf
+*.md      text eol=lf
+*.txt     text eol=lf
