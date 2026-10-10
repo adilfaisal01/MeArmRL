@@ -12,6 +12,7 @@ mimic API presence), and the articulation root. Read-only diagnostic.
 
 import argparse
 import os
+from pathlib import Path
 
 from isaaclab.app import AppLauncher
 
@@ -102,9 +103,10 @@ def main():
             UsdPhysics.RevoluteJoint(p).GetUpperLimitAttr().Get(),
         ) if type_name in ("PhysicsRevoluteJoint", "PhysicsPrismaticJoint") else None
         flag = "OK " if (body0 and body1) else "BAD"
-        print(f"  [{flag}] {p.Ge~~tPath()}  (type={p.GetTypeName()})")
+        print(f"  [{flag}] {p.GetPath()}  (type={p.GetTypeName()})")
         print(f"        body0={body0 or '<MISSING>'}")
         print(f"        body1={body1 or '<MISSING>'}")
+        print(f"        collision={collision}  mimic_api={has_mimic}")
         if p.GetTypeName() == "PhysicsRevoluteJoint":
             print(f"        limits={limits}")
         for schema in p.GetAppliedSchemas():
@@ -124,13 +126,19 @@ def main():
     mat_count = sum(1 for p in stage.Traverse() if UsdShade.Material(p))
     summary_lines = []
     summary_lines.append(f"  Meshes: {mesh_count}, Materials: {mat_count}")
-    summary_lines.append(f"  Bodies: {len(bodies)}, Joints: {len(joints)}, Articulation roots: {len(articulation_roots)}")
-    bad = [p.GetPath() for p in joints if not (UsdPhysics.Joint(p).GetBody0Rel() and UsdPhysics.Joint(p).GetBody0Rel().GetTargets()) or not (UsdPhysics.Joint(p).GetBody1Rel() and UsdPhysics.Joint(p).GetBody1Rel().GetTargets())]
+    summary_lines.append(
+        f"  Bodies: {len(bodies)}, Joints: {len(joints)}, Articulation roots: {len(articulation_roots)}"
+    )
+    bad = [
+        p.GetPath()
+        for p in joints
+        if not (UsdPhysics.Joint(p).GetBody0Rel() and UsdPhysics.Joint(p).GetBody0Rel().GetTargets())
+        or not (UsdPhysics.Joint(p).GetBody1Rel() and UsdPhysics.Joint(p).GetBody1Rel().GetTargets())
+    ]
     summary_lines.append(f"  Joints with missing body rels: {len(bad)}")
     for path in bad:
         summary_lines.append(f"    - {path}")
-    with open("/tmp/opencode/inspect_summary.txt", "w") as f:
-        f.write("\n".join(summary_lines) + "\n")
+    Path("/tmp/opencode/inspect_summary.txt").write_text("\n".join(summary_lines) + "\n")
 
 
 if __name__ == "__main__":
