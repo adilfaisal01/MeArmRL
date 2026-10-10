@@ -146,6 +146,11 @@ Consequences:
   `docker/cluster/apptainer-standalone.def`) -> `sbatch slurm/train.sbatch`.
   `train.sbatch` bind-mounts the student's `source/MeArmRL`, so **lab config edits
   take effect without rebuilding the SIF**.
+- **Results persist and are retrievable.** The job dir is mounted at
+  `/MeArmRL/logs` (where `train.py` writes -- mounting only `/logs` silently lost
+  every checkpoint to the container's ephemeral layer until 2026-10).
+  `scripts/pull_results.sh` rsyncs a run back to `logs/remote/<JOB_ID>/` and prints
+  the `play.py` command; `VIDEO=1` on a cluster job records videos.
 - **macOS / no local GPU:** the inner loop runs locally (CPU harness); training
   goes to the cluster. Building the SIF on Apple Silicon means building an amd64
   image under emulation -- build on a lab Linux machine or the login node instead.

@@ -41,6 +41,10 @@ NUM_ENVS="${NUM_ENVS:-1024}"
 MAX_ITERATIONS="${MAX_ITERATIONS:-4800}"
 SEED="${SEED:-42}"
 CHECKPOINT="${CHECKPOINT:-}"
+# VIDEO=1 records videos during training into <log_dir>/videos/train.
+VIDEO="${VIDEO:-0}"
+VIDEO_LENGTH="${VIDEO_LENGTH:-200}"
+VIDEO_INTERVAL="${VIDEO_INTERVAL:-2000}"
 
 # --- SLURM-derived env + per-user scratch setup -----------------------------
 # MEARMRL_BACKEND=docker makes env.sh chmod 777 the scratch dirs.
@@ -51,9 +55,12 @@ source "$(dirname "${BASH_SOURCE[0]}")/env.sh"
 IMAGE="${MEARMRL_IMAGE:-mearmrl:local}"
 
 # --- Container mounts --------------------------------------------------------
+# MEARMRL_JOB_LOGS is mounted at /MeArmRL/logs because train.py writes to the
+# cwd-relative logs/; /logs is kept for the entrypoint's writability guard.
 MOUNT_ARGS=()
 for m in \
     "${SLURM_SUBMIT_DIR}/source/MeArmRL:/MeArmRL/source/MeArmRL" \
+    "${MEARMRL_JOB_LOGS}:/MeArmRL/logs" \
     "${MEARMRL_JOB_LOGS}:/logs" \
     "${MEARMRL_CACHE_ROOT}/kit:/isaac-sim/kit/cache" \
     "${MEARMRL_CACHE_ROOT}/ov:/root/.cache/ov" \
@@ -68,6 +75,9 @@ done
 TRAIN_ARGS=(--task="${TASK}" --num_envs="${NUM_ENVS}" --max_iterations="${MAX_ITERATIONS}" --seed="${SEED}" --headless)
 if [ -n "${CHECKPOINT}" ]; then
     TRAIN_ARGS+=(--checkpoint="${CHECKPOINT}")
+fi
+if [ "${VIDEO}" = "1" ]; then
+    TRAIN_ARGS+=(--video --video_length="${VIDEO_LENGTH}" --video_interval="${VIDEO_INTERVAL}")
 fi
 
 # --- Launch -------------------------------------------------------------------

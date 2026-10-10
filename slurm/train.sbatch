@@ -16,7 +16,7 @@
 #
 # The script bind-mounts:
 #   - your source checkout  -> /MeArmRL/source/MeArmRL (edits take effect)
-#   - your per-user logs    -> /logs
+#   - your per-user logs    -> /MeArmRL/logs (and /logs)
 #   - your per-user cache   -> Isaac Sim cache dirs (shader/ComputeCache persist)
 
 #SBATCH --job-name=mearmrl-train
@@ -36,6 +36,11 @@ NUM_ENVS="${NUM_ENVS:-1024}"
 MAX_ITERATIONS="${MAX_ITERATIONS:-4800}"
 SEED="${SEED:-42}"
 CHECKPOINT="${CHECKPOINT:-}"
+# VIDEO=1 records videos during training into <log_dir>/videos/train (needs the
+# renderer; slower). Pulled back with scripts/pull_results.sh.
+VIDEO="${VIDEO:-0}"
+VIDEO_LENGTH="${VIDEO_LENGTH:-200}"
+VIDEO_INTERVAL="${VIDEO_INTERVAL:-2000}"
 
 # --- SLURM-derived env + per-user scratch setup -----------------------------
 source "$(dirname "${BASH_SOURCE[0]}")/env.sh"
@@ -57,6 +62,10 @@ fi
 # Cache paths follow the Isaac Lab docker layout.
 MOUNTS=(
     "${SLURM_SUBMIT_DIR}/source/MeArmRL:/MeArmRL/source/MeArmRL"
+    # train.py writes to the cwd-relative logs/ (i.e. /MeArmRL/logs); /logs is
+    # kept for the entrypoint's writability guard. Missing /MeArmRL/logs silently
+    # loses every checkpoint to the container's ephemeral layer.
+    "${MEARMRL_JOB_LOGS}:/MeArmRL/logs"
     "${MEARMRL_JOB_LOGS}:/logs"
     "${MEARMRL_CACHE_ROOT}/kit:/isaac-sim/kit/cache"
     "${MEARMRL_CACHE_ROOT}/ov:/root/.cache/ov"
@@ -76,6 +85,9 @@ done
 TRAIN_ARGS=(--task="${TASK}" --num_envs="${NUM_ENVS}" --max_iterations="${MAX_ITERATIONS}" --seed="${SEED}" --headless)
 if [ -n "${CHECKPOINT}" ]; then
     TRAIN_ARGS+=(--checkpoint="${CHECKPOINT}")
+fi
+if [ "${VIDEO}" = "1" ]; then
+    TRAIN_ARGS+=(--video --video_length="${VIDEO_LENGTH}" --video_interval="${VIDEO_INTERVAL}")
 fi
 
 # --- Launch ------------------------------------------------------------------

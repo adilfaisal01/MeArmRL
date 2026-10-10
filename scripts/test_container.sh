@@ -51,6 +51,7 @@ for f in \
     slurm/train-docker.sbatch \
     scripts/dev_local.sh \
     scripts/lab_setup.sh \
+    scripts/pull_results.sh \
     scripts/test_container.sh; do
     bash -n "${REPO_ROOT}/${f}"
     echo "  OK: ${f}"

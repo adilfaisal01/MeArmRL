@@ -59,6 +59,9 @@ fi
 # --- Container mounts --------------------------------------------------------
 MOUNTS=(
     "${SLURM_SUBMIT_DIR}/source/MeArmRL:/MeArmRL/source/MeArmRL"
+    # train.py writes to the cwd-relative logs/ (i.e. /MeArmRL/logs); /logs is
+    # kept for the entrypoint's writability guard.
+    "${MEARMRL_JOB_LOGS}:/MeArmRL/logs"
     "${MEARMRL_JOB_LOGS}:/logs"
     "${MEARMRL_CACHE_ROOT}/kit:/isaac-sim/kit/cache"
     "${MEARMRL_CACHE_ROOT}/ov:/root/.cache/ov"

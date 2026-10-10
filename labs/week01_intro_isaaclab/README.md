@@ -180,7 +180,10 @@ Train your modified config with the fixed budget:
 > `source/MeArmRL`. Logs/checkpoints land in
 > `/scratch/$USER/mearmrl-logs/jobs/<JOB_ID>/` instead of `logs/skrl/...`; the
 > sbatch defaults (`Mearmrl-Reach-v0`, 1024 envs, 4800 iterations) match this
-> lab's budget, so only `TASK` needs overriding.
+> lab's budget, so only `TASK` needs overriding. When the job finishes, pull the
+> run back with
+> `MEARMRL_REMOTE=user@hpc-login.university.edu bash scripts/pull_results.sh`
+> (see `slurm/README.md`), then play the checkpoint path it prints.
 
 Checkpoints land in `logs/skrl/mearmrl-reach/<timestamp>/checkpoints/`
 (`agent_*.pt`, `best_agent.pt`); metrics go to the TensorBoard event file in

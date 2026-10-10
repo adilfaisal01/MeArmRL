@@ -209,6 +209,13 @@ control via `TASK=Template-Mearmrl-v0`):
 
 ```bash
 TASK=Template-Mearmrl-v0 NUM_ENVS=128 MAX_ITERATIONS=2000 sbatch slurm/train.sbatch
+
+# record videos during training (slower; uses the renderer):
+VIDEO=1 sbatch slurm/train.sbatch
+
+# resume from an earlier checkpoint:
+CHECKPOINT=/scratch/$USER/mearmrl-logs/jobs/<JOB_ID>/skrl/mearmrl-reach/<ts>/checkpoints/agent_4800.pt \
+    sbatch slurm/train.sbatch
 ```
 
 ### Multi-node (torchrun + NCCL)
@@ -223,10 +230,37 @@ from the SLURM environment, so the same script works for 1 or N nodes.
 ## Where your work lives
 
 | Artifact | Location | Notes |
-|---|---|---|
-| Logs / checkpoints | `/scratch/$USER/mearmrl-logs/jobs/<SLURM_JOB_ID>/` | Job-ID-prefixed; cannot collide with other jobs or users |
+| --- | --- | --- |
+| Logs / checkpoints | `/scratch/$USER/mearmrl-logs/jobs/<SLURM_JOB_ID>/` | Mounted at `/MeArmRL/logs`; pull home with `scripts/pull_results.sh` |
 | Isaac Sim shader/ComputeCache | `/scratch/$USER/isaac-sim-cache/` | Persists across jobs; first run is slow, later runs are fast |
 | Your source edits | `~/MeArmRL/source/MeArmRL/` | Bind-mounted into the container at runtime |
+
+## Getting results back
+
+Training writes to `/scratch/$USER/mearmrl-logs/jobs/<JOB_ID>/` (mounted at
+`/MeArmRL/logs` in the container). Pull it to your own machine with
+`scripts/pull_results.sh` -- checkpoints, `params/`, TensorBoard events, and any
+videos:
+
+```bash
+# one-time: point at your login node (put this in ~/.bashrc)
+export MEARMRL_REMOTE=user@hpc-login.university.edu
+
+bash scripts/pull_results.sh              # the most recent job
+bash scripts/pull_results.sh 12345678     # a specific job
+bash scripts/pull_results.sh --all        # every job
+bash scripts/pull_results.sh --weights    # checkpoints + params only
+bash scripts/pull_results.sh --list       # list remote jobs, newest first
+```
+
+Artifacts land in `logs/remote/<JOB_ID>/` (the compose container sees this as
+`/MeArmRL/logs/remote/<JOB_ID>`), and the script prints the exact `play.py`
+command for the checkpoint it pulled. Add `--dry-run` to see the `rsync`
+commands without running them. On Windows, run it from Git-Bash or WSL.
+
+> **Historical jobs:** the `/MeArmRL/logs` mount was added in 2026-10. Jobs
+> submitted before that wrote into the container's ephemeral layer and left
+> nothing on scratch.
 
 ## Reading a teammate's run
 
@@ -239,13 +273,13 @@ ls /scratch/<teammate>/mearmrl-logs/jobs/
 
 To resume from a teammate's checkpoint, copy it into your own logs dir first
 (or pass `--checkpoint` with the full path -- the container will warn if it is
-outside your own `/logs`).
+outside your own `/MeArmRL/logs`).
 
 ## Troubleshooting
 
-- **`/logs is not writable`**: the container user cannot write your scratch
-  dir. Make sure the sbatch scripts run with `--container-remap-root
-  --container-user=0` (they do by default).
+- **`/MeArmRL/logs is not writable`** (or `/logs`): the container user cannot
+  write your scratch dir. Make sure the sbatch scripts run with
+  `--container-remap-root --container-user=0` (they do by default).
 - **Slow first run**: expected -- shader/ComputeCache warm-up. Subsequent runs
   are 3-5x faster.
 - **Multi-node hangs**: check `NCCL_DEBUG=WARN` output in the `.err` file.

@@ -28,18 +28,19 @@ export NCCL_DEBUG="${NCCL_DEBUG:-WARN}"
 export NCCL_P2P_DISABLE="${NCCL_P2P_DISABLE:-0}"
 
 # --- Logs writability guard ------------------------------------------------
-# If /logs is bind-mounted (HPC pattern) it must be writable by the container
-# user. Fail loudly instead of silently losing checkpoints.
-if [ -d /logs ]; then
-    if [ ! -w /logs ]; then
-        echo "[entrypoint] ERROR: /logs is not writable by the container user." >&2
+# train.py writes to the cwd-relative logs/ (= /MeArmRL/logs), so that is where
+# runs must persist; /logs is also bind-mounted on HPC. Fail loudly instead of
+# silently losing every checkpoint to the container's ephemeral layer.
+for logs_dir in /MeArmRL/logs /logs; do
+    if [ -d "${logs_dir}" ] && [ ! -w "${logs_dir}" ]; then
+        echo "[entrypoint] ERROR: ${logs_dir} is not writable by the container user." >&2
         echo "[entrypoint] Fix on the HPC host (no root needed):" >&2
         echo "[entrypoint]   srun --container-remap-root --container-user=0 ..." >&2
         echo "[entrypoint] (remaps the container root to your host user, so the" >&2
         echo "[entrypoint]  container writes to your own scratch dirs naturally)." >&2
         exit 1
     fi
-fi
+done
 
 # --- Run -------------------------------------------------------------------
 exec "$@"
