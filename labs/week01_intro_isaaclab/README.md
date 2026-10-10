@@ -22,8 +22,9 @@ python -m pytest labs/week01_intro_isaaclab/harness -q
 ```
 
 It loads the real reward code and shows you what each term does before you spend
-GPU time. The container is only needed for the training runs in Parts 2 and 4.
-See `labs/week01_intro_isaaclab/harness/README.md`.
+GPU time. The training runs in Parts 2 and 4 need a GPU -- locally via the
+container, or on the university cluster via SLURM (see `slurm/README.md`). See
+`labs/week01_intro_isaaclab/harness/README.md`.
 
 ## Learning goals
 
@@ -99,8 +100,13 @@ same fixed budget for each run:
     --num_envs=1024 --headless --seed=42 --max_iterations=2000
 ```
 
+> **No local GPU?** Run each of these on the university cluster instead
+> (Singularity + SLURM). Your edits to `reach_student_cfg.py` take effect there
+> because the job bind-mounts your `source/MeArmRL`; see `slurm/README.md` and
+> the cluster note in Part 4.
+
 | Run | Change | Predicted effect | Observed effect |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | A | `end_effector_position_tracking` weight `-0.2` → `-2.0` | | |
 | B | `action_rate` and `joint_vel` weights → `0.0` | | |
 | C | `end_effector_position_tracking_fine_grained` std `0.1` → `0.02` | | |
@@ -115,7 +121,7 @@ your changes on a branch named `week01-<yourname>`.
 ## Part 3 — Write a new reward term (45 min)
 
 The file `reach_student_cfg.py` contains a `reach_progress_bonus` skeleton with
-three blanks. Fill them in so the function rewards the *decrease* in
+two blanks. Fill them in so the function rewards the *decrease* in
 end-effector distance to the target since the previous step:
 
 1. **BLANK 1** — progress = previous distance − current distance (positive when
@@ -123,7 +129,12 @@ end-effector distance to the target since the previous step:
 2. **BLANK 2** — zero out progress on the first step of a new episode, where the
    cached distance still belongs to the previous episode. A freshly reset env
    has `env.episode_length_buf == 1` at reward time.
-3. **BLANK 3** — remember the current distance for the next step.
+
+**BLANK 3 is given** — the one-line cache update
+(`env._reach_prev_dist = distance.clone()`) is provided. If you skip BLANK 2, the
+cached value leaks across the reset and the term pays a large one-step bonus every
+time an episode restarts: a reward-hacking bug the CPU harness is built to catch
+(`test_no_spike_when_a_new_episode_starts`).
 
 Then register it by uncommenting the example `RewTerm` in `StudentRewardsCfg`
 (choose your own weight). Verify everything is wired up — first the fast CPU
@@ -156,18 +167,20 @@ Train your modified config with the fixed budget:
     --num_envs=1024 --headless --seed=42 --max_iterations=4800
 ```
 
-> **Running on the cluster (optional).** If your GPU is on an HPC cluster, the
-> same training runs via SLURM — see `slurm/README.md` for the full guide
-> (image delivery, per-user setup, troubleshooting). The short version, from
-> your checkout on the login node:
+> **Running on the cluster (use this if you have no local GPU).** The same
+> training runs on the university HPC cluster via Singularity/SLURM — see
+> `slurm/README.md` for the full guide (SIF delivery, per-user setup,
+> troubleshooting). The short version, from your checkout on the login node:
 >
 > ```bash
 > TASK=Mearmrl-Reach-Student-v0 sbatch slurm/train.sbatch
 > ```
 >
-> Logs/checkpoints land in `/scratch/$USER/mearmrl-logs/jobs/<JOB_ID>/` instead
-> of `logs/skrl/...`; the sbatch defaults (`Mearmrl-Reach-v0`, 1024 envs, 4800
-> iterations) match this lab's budget, so only `TASK` needs overriding.
+> Your `reach_student_cfg.py` edits take effect because the job bind-mounts your
+> `source/MeArmRL`. Logs/checkpoints land in
+> `/scratch/$USER/mearmrl-logs/jobs/<JOB_ID>/` instead of `logs/skrl/...`; the
+> sbatch defaults (`Mearmrl-Reach-v0`, 1024 envs, 4800 iterations) match this
+> lab's budget, so only `TASK` needs overriding.
 
 Checkpoints land in `logs/skrl/mearmrl-reach/<timestamp>/checkpoints/`
 (`agent_*.pt`, `best_agent.pt`); metrics go to the TensorBoard event file in

@@ -1,0 +1,15 @@
+---
+# Repo-wide yamllint policy.
+#
+# The BSD-3-Clause copyright header used across this repo is 126 columns and must
+# stay verbatim, and the YAML follows the same ~120-column style as the code
+# (ruff's line-length is 120). yamllint's default 80-column limit therefore does
+# not fit, so it is raised to 126. Everything else stays at yamllint's defaults.
+
+extends: default
+
+rules:
+  line-length:
+    max: 126
+    allow-non-breakable-words: true
+  document-start: disable

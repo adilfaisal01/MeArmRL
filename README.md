@@ -82,6 +82,13 @@ Notes:
 - To regenerate the USD from the URDF (rarely needed; requires a GPU):
   `IsaacLab/isaaclab.sh -p source/MeArmRL/MeArmRL/robot_description/mate_connectors/isaac/convert_urdf_to_usd.py --headless`
 
+### Training on the university HPC cluster
+
+The repo ships Singularity + SLURM job scripts for the university's cluster (see
+`slurm/README.md`). With no local NVIDIA GPU, build the image and run your
+training there — the job bind-mounts your `source/MeArmRL`, so config edits take
+effect without rebuilding the SIF.
+
 ## Installation
 
 - Install Isaac Lab by following the [installation guide](https://isaac-sim.github.io/IsaacLab/main/source/setup/installation/index.html).

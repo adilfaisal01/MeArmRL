@@ -5,6 +5,11 @@
 
 # MeArmRL container image (Docker + Compose + Singularity/Apptainer).
 
+> **macOS / Windows / no-GPU?** Run `python scripts/doctor.py` from the repo root
+> first -- it detects your OS and prints exactly what is missing. The GPU-free
+> half of the lab (reward math, config checks) runs on any laptop; see
+> `labs/week01_intro_isaaclab/harness/README.md` and `docs/class-onboarding.md`.
+
 The image is **built locally by whoever needs it** — there is no shared
 registry and no maintainer push step. It contains Isaac Sim 5.1.0, Isaac Lab
 2.3.2 (cloned from GitHub and installed into the Isaac Sim Python), the RL

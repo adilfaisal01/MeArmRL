@@ -119,31 +119,51 @@ a real gap?), not by scanning for `TODO` markers.
    missing. On macOS it exits `2` with cloud/CPU guidance, because the GPU path is
    impossible there. `--json` makes it easy to survey a whole class; `--gpu-smoke`
    additionally runs `nvidia-smi` inside the built image.
-4. **Ignored venv.** `.venv-lab/` is gitignored.
+4. **Docker Desktop networking.** `network_mode: host` was removed from
+   `docker/docker-compose.yaml` (Linux-only; Docker Desktop rejects it) -- the
+   services use the default bridge network, and nothing here needed host
+   networking. Add it back per service only if you need it on Linux. `doctor.py`
+   no longer warns about it.
+5. **Repo-wide yamllint policy.** `.yamllint` raises the line limit to 126 so the
+   126-column copyright header (which must stay verbatim) and the repo's ~120-column
+   style pass; `document-start` is disabled to match existing files.
+6. **Ignored venv.** `.venv-lab/` is gitignored.
 
-### Still recommended (not done)
+## 5. Tier 3 — decided: per-student build + university HPC cluster
 
-* **`network_mode: host` in `docker/docker-compose.yaml` is Linux-only** and makes
-  `docker compose up` fail on Docker Desktop (macOS *and* Windows). It is not
-  needed for headless training; move it behind an override file. (`doctor.py` warns
-  about this, but the compose file itself is unchanged.)
+**Decision (2026-10):** students **build the image on their own machine** and run
+**training on the university-owned supercomputing cluster** via
+Singularity/Apptainer + SLURM. No course image registry is used, so the NGC
+redistribution question below is moot: every student pulls the nvcr.io base
+themselves, which the licence permits.
 
-## 5. Tier 3 — where the outer loop lives (decision)
+Consequences:
+
+- The build (15–20 min, ~11 GB, NGC login) happens once per machine and needs **no
+  GPU**, so it can be done on a laptop even though training cannot run there.
+- Training uses the existing machinery: `docker build` -> SIF
+  (`bash docker/cluster/build_sif.sh local "$HOME"`, or the Docker-free
+  `docker/cluster/apptainer-standalone.def`) -> `sbatch slurm/train.sbatch`.
+  `train.sbatch` bind-mounts the student's `source/MeArmRL`, so **lab config edits
+  take effect without rebuilding the SIF**.
+- **macOS / no local GPU:** the inner loop runs locally (CPU harness); training
+  goes to the cluster. Building the SIF on Apple Silicon means building an amd64
+  image under emulation -- build on a lab Linux machine or the login node instead.
+
+Options considered (A + cluster chosen):
 
 | Option | Student friction | Cross-OS | Notes |
 | --- | --- | --- | --- |
-| **A. Per-student build** (today) | 15–20 min build + NGC login + Docker + GPU | all three | license-clean; slowest ramp |
-| **B. Prebuilt image in a registry** | `docker pull` only | all three | biggest win; **licensing**: see below |
-| **C. Offline tarball** (`docker save`) | `docker load`, no network | all three | same licensing question; ~5 GB via the LMS |
-| **D. Managed cloud GPU** | click a template | any OS **incl. macOS** | Brev.dev / RunPod / Lambda / department server — the only route for Macs |
-| **E. One classroom GPU box** | SSH / remote desktop | any OS incl. macOS | often the most reliable for a mixed class |
+| **A. Per-student build (chosen)** | 15–20 min build + NGC login + Docker + GPU | all three | license-clean; slowest ramp |
+| B. Prebuilt image in a registry | `docker pull` only | all three | biggest win, but the licence restricts redistribution |
+| C. Offline tarball (`docker save`) | `docker load`, no network | all three | same licence question; ~5 GB via the LMS |
+| D. Managed cloud GPU | click a template | any OS incl. macOS | Brev.dev / RunPod / Lambda; not used (university owns a cluster) |
+| E. One classroom GPU box | SSH / remote desktop | any OS incl. macOS | not used (university owns a cluster) |
 
-**Licensing caveat (verify, not legal advice).** A derived image built from
-`nvcr.io/nvidia/isaac-sim` still contains NVIDIA's layers. NGC images are under
-NVIDIA's Software License Agreement, and redistribution is generally restricted.
-A **private** course registry (GHCR private, or a university registry) accessible
-to enrolled students is the pragmatic middle ground; public redistribution should
-be cleared first. Option A stays entirely license-clean.
+**Licensing note (why not a registry).** A derived image built from
+`nvcr.io/nvidia/isaac-sim` still contains NVIDIA's layers; NGC images are under
+NVIDIA's Software License Agreement and redistribution is generally restricted.
+Keeping the build per-student avoids the question entirely.
 
 ## 6. Verification
 
@@ -159,17 +179,14 @@ skip until the shaping term is implemented; the parity test skips without Isaac
 Lab). `check_week01.py --static` reports "none of the student files were modified"
 until the student starts work — expected.
 
-## 7. Open decisions
+## 7. Decisions & open items
 
-1. **Distribution channel** (Tier 3): registry vs per-student build vs tarball, and
-   whether the licence permits a private registry.
-2. **macOS / no-GPU students**: is "inner loop locally, training on cloud" the
-   intended split, or should a cloud recipe be scripted into the repo?
-3. **Week-1 skeleton**: blanks 2 and 3 of `reach_progress_bonus` are *already
-   functionally correct*, yet carry `TODO(week01)` markers. That is confusing for
-   students and defeats comment-based tooling. Either make the blanks genuinely
-   empty, or relabel them "verify you understand why this is right". Not changed
-   here because it alters the assignment itself.
-4. **Add a `network_mode: host` override** (see §4); `doctor.py` only warns about it.
-5. **Optional tiny CPU devcontainer** for a fully reproducible inner loop,
-   deliberately separate from the GPU image.
+Resolved: distribution = **per-student build, no registry** (§5); training =
+**university HPC cluster, Singularity + SLURM** (§5); Week-1 skeleton = **two
+genuine blanks, option (b)** (`reach_progress_bonus`); plus the doctor,
+`network_mode`, and yamllint items in §4.
+
+Still open:
+
+- **Optional tiny CPU devcontainer** for a fully reproducible inner loop,
+  deliberately separate from the GPU image.

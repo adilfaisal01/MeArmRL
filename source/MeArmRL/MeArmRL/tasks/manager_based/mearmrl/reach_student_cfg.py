@@ -38,7 +38,7 @@ def reach_progress_bonus(env, command_name: str, asset_cfg: SceneEntityCfg) -> t
     """Reward the decrease in end-effector distance to the commanded target.
 
     This is a *shaping* bonus: it rewards getting closer to the target each
-    step, not just being close. Fill in the three blanks (marked ``TODO``).
+    step, not just being close. Fill in the two blanks (marked ``TODO``).
 
     Reference: ``position_command_error_tanh`` in ``mdp/rewards.py`` shows how
     to fetch the command and compute the current distance.
@@ -50,21 +50,21 @@ def reach_progress_bonus(env, command_name: str, asset_cfg: SceneEntityCfg) -> t
     curr_pos_w = asset.data.body_pos_w[:, asset_cfg.body_ids[0]]  # type: ignore
     distance = torch.norm(curr_pos_w - des_pos_w, dim=1)
 
-    # cache the previous distance on the env (per-env state, survives across steps)
+    # Seed the cache on the very first call (per-env state that survives across steps).
     if not hasattr(env, "_reach_prev_dist"):
         env._reach_prev_dist = distance.clone()
 
     # BLANK 1: progress = previous distance - current distance (positive = getting closer)
     progress = torch.zeros_like(distance)  # TODO(week01): replace this line
 
-    # BLANK 2: zero out progress on the first step of a new episode, where the
-    # cached distance still belongs to the previous episode.
+    # BLANK 2: zero out progress on the first step of a new episode, where the cached
+    # distance still belongs to the previous episode. Without this guard, a reset
+    # produces a one-step reward spike that the policy learns to chase.
     # Hint: a freshly reset env has env.episode_length_buf == 1 at reward time.
-    first_step = env.episode_length_buf == 1
-    progress = torch.where(first_step, torch.zeros_like(progress), progress)  # TODO(week01): replace this line
+    # TODO(week01): apply the first-step guard to `progress` here.
 
-    # BLANK 3: remember the current distance for the next step
-    env._reach_prev_dist = distance.clone()  # TODO(week01): replace this line
+    # BLANK 3 (given): remember the current distance for the next step.
+    env._reach_prev_dist = distance.clone()
 
     return progress
 

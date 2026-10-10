@@ -18,6 +18,11 @@
 # GUI / X11 (optional, not enabled by default): add
 #   -e DISPLAY -v $HOME/.Xauthority:/root/.Xauthority -v /tmp/.X11-unix:/tmp/.X11-unix
 # and run `xhost +` on the host. See docker/README.md.
+#
+# Networking: services use Docker's default bridge network. `network_mode: host`
+# (Linux-only) is deliberately NOT set -- it is unsupported on Docker Desktop for
+# macOS/Windows and nothing here needs it. Add it per service only if you need
+# host networking on Linux (e.g. WebRTC livestream).
 
 services:
   mearmrl:
@@ -25,7 +30,6 @@ services:
       context: ..
       dockerfile: docker/Dockerfile
     image: mearmrl:local
-    network_mode: host
     environment: &default-env
       - ACCEPT_EULA=Y
       - PRIVACY_CONSENT=Y
@@ -81,7 +85,6 @@ services:
 
   dev:
     image: mearmrl:local
-    network_mode: host
     environment: *default-env
     volumes: *default-volumes
     deploy:
