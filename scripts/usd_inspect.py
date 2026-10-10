@@ -99,9 +99,13 @@ def main():
         collision = UsdPhysics.Joint(p).GetCollisionEnabledAttr().Get()
         has_mimic = p.HasAPI(PhysxSchema.PhysxMimicJointAPI)
         limits = (
-            UsdPhysics.RevoluteJoint(p).GetLowerLimitAttr().Get(),
-            UsdPhysics.RevoluteJoint(p).GetUpperLimitAttr().Get(),
-        ) if type_name in ("PhysicsRevoluteJoint", "PhysicsPrismaticJoint") else None
+            (
+                UsdPhysics.RevoluteJoint(p).GetLowerLimitAttr().Get(),
+                UsdPhysics.RevoluteJoint(p).GetUpperLimitAttr().Get(),
+            )
+            if type_name in ("PhysicsRevoluteJoint", "PhysicsPrismaticJoint")
+            else None
+        )
         flag = "OK " if (body0 and body1) else "BAD"
         print(f"  [{flag}] {p.GetPath()}  (type={p.GetTypeName()})")
         print(f"        body0={body0 or '<MISSING>'}")

@@ -1,30 +1,46 @@
-# Template for Isaac Lab Projects
+# MeArmRL — train a robot arm with reinforcement learning
 
-## Overview
+Course repository for the MATE connectors arm. You will write a reward function,
+train a PPO policy in [Isaac Lab](https://isaac-sim.github.io/IsaacLab/) with
+[skrl](https://skrl.readthedocs.io/), and compare it against a baseline.
 
-This project/repository serves as a template for building projects or extensions based on Isaac Lab.
-It allows you to develop in an isolated environment, outside of the core Isaac Lab repository.
+**You do not need a GPU to start.** Writing and testing reward code is plain
+tensor math and runs on any laptop — Linux, macOS, or Windows. Only the actual
+*training* needs an NVIDIA GPU.
 
-**Key Features:**
+## Start here
 
-- `Isolation` Work outside the core Isaac Lab repository, ensuring that your development efforts remain self-contained.
-- `Flexibility` This template is set up to allow your code to be run as an extension in Omniverse.
-
-**Keywords:** extension, template, isaaclab
-
-## Start coding (no GPU required)
-
-Most of the Week-1 lab is pure tensor math and runs on any laptop -- Linux,
-Windows, or macOS. The container below is only needed to *train*.
+**Step 1 — check your machine.** This tells you which steps below apply:
 
 ```bash
-python scripts/doctor.py                 # what does this machine support?
-bash scripts/lab_setup.sh                # CPU env + reward harness (lab_setup.cmd on Windows)
-python scripts/check_week01.py --static  # config/reward wiring, no simulator
+python scripts/doctor.py
 ```
 
-See `labs/week01_intro_isaaclab/harness/README.md` for the harness and
-`docs/class-onboarding.md` for the multi-OS / distribution design.
+**Step 2 — set up the CPU environment and explore the rewards** (everyone: no
+GPU, no container):
+
+```bash
+bash scripts/lab_setup.sh                 # Linux / macOS / Git-Bash
+# Windows:  scripts\lab_setup.cmd
+python labs/week01_intro_isaaclab/harness/playground.py
+```
+
+**Step 3 — train.** Only if you have (access to) an NVIDIA GPU:
+
+- **Local RTX GPU?** `python scripts/bootstrap_gpu.py` sets up the container for
+  you in one command (checks, logs in, builds, smoke-tests).
+- **Mac or no local GPU?** Train on the university cluster — see `slurm/README.md`
+  and the cluster section below.
+
+**Then do the lab:** [`labs/week01_intro_isaaclab/README.md`](labs/week01_intro_isaaclab/README.md)
+
+| Your machine | Step 3 looks like |
+| --- | --- |
+| Linux or Windows + NVIDIA RTX GPU | `python scripts/bootstrap_gpu.py`, then train locally |
+| macOS, or no NVIDIA GPU | build the SIF and submit to the cluster |
+
+> **Stuck?** Every tool here prints the exact command to fix things — start with
+> `python scripts/doctor.py`. Maintainers: `AGENTS.md`, `docs/class-onboarding.md`.
 
 ## Training the MATE connectors arm (e2e RL)
 
@@ -92,6 +108,14 @@ The repo ships Singularity + SLURM job scripts for the university's cluster (see
 `slurm/README.md`). With no local NVIDIA GPU, build the image and run your
 training there — the job bind-mounts your `source/MeArmRL`, so config edits take
 effect without rebuilding the SIF.
+
+## Advanced / reference material
+
+> **Students: you can stop reading here.** Everything below is either reference
+> for the arm environment or boilerplate inherited from the Isaac Lab project
+> template (manual install, Omniverse extension setup, Pylance tuning). The
+> Week-1 lab needs none of it — you use the container (or the cluster) and the
+> CPU harness.
 
 ## Installation
 
